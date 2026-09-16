@@ -1,15 +1,13 @@
-# Shared dependencies for Week 1–3 FastAPI, LangChain RAG, and LangGraph labs.
-# Install from the repository root:
-#   uv venv
-#   uv pip install -r requirements.txt
-
-# Runtime
+# Runtime: APIs, LangChain/LangGraph, live OpenAI + PostgreSQL/pgvector
 fastapi>=0.115,<1.0
 uvicorn>=0.30,<1.0
 langchain>=1.0,<2.0
 langchain-text-splitters>=1.0,<2.0
+langchain-openai>=1.0,<2.0
+langchain-postgres>=0.0.16,<1.0
 langgraph>=1.0,<2.0
+psycopg[binary]>=3.2,<4.0
 
-# Tests and notebook execution
+# Tests and executable notebooks
 httpx>=0.27,<1.0
 jupyter>=1.1,<2.0

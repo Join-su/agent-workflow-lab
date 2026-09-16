@@ -1,0 +1,72 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-langchain}
+      POSTGRES_USER: ${POSTGRES_USER:-langchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-langchain}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-6024}:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/001-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-langchain} -d ${POSTGRES_DB:-langchain}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  week1:
+    profiles: ["apps"]
+    build: .
+    command: ["uvicorn", "week1.app:app", "--host", "0.0.0.0", "--port", "8011"]
+    environment: &app-environment
+      APP_MODE: live
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-langchain}:${POSTGRES_PASSWORD:-langchain}@pgvector:5432/${POSTGRES_DB:-langchain}
+      SEED_KNOWLEDGE_BASE: ${SEED_KNOWLEDGE_BASE:-true}
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    ports: ["8011:8011"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8011/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  week2:
+    profiles: ["apps"]
+    build: .
+    command: ["uvicorn", "week2.app:app", "--host", "0.0.0.0", "--port", "8012"]
+    environment: *app-environment
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    ports: ["8012:8012"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8012/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  week3:
+    profiles: ["apps"]
+    build: .
+    command: ["uvicorn", "week3.app:app", "--host", "0.0.0.0", "--port", "8013"]
+    environment: *app-environment
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    ports: ["8013:8013"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8013/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgvector_data:

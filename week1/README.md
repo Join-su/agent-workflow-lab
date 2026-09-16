@@ -1,62 +1,61 @@
-# Week 1 — LangChain 규정 RAG·근거 검증 Graph (난이도 1/5)
+# Week 1 — HR 규정 근거 기반 Q&A (난이도 1/5)
 
-## 목표
+## 프로젝트 결과
 
-작은 휴가 규정 corpus를 LangChain `Document`와 text splitter로 다루고, LangGraph `QueryState`에서 `Retriever → Answer → Evidence Guard`를 실행합니다.
+구성원이 합성 휴가 규정을 질문하면 관련 chunk를 검색하고, 근거가 있을 때만 답변·citation을 반환합니다. 근거가 없으면 `insufficient_evidence`로 종료하며 휴가를 신청하거나 승인하지 않습니다.
 
 ```text
-question → Retriever → Answer → Evidence Guard → answered / insufficient_evidence
+question → retrieve → answer → grounding_guard → answered | insufficient_evidence
 ```
 
-## 현업 적용 시나리오
+## 이번 주에 처음 배우는 것
 
-**HR 운영팀의 휴가 규정 셀프서비스 보조**를 가정합니다. 구성원이 휴가 신청 기한·승인 조건을 묻고, HR 담당자는 답변이 실제 규정 문서에 연결되는지 확인합니다.
+- Pydantic `QueryRequest`와 FastAPI 입력 경계
+- LangChain `Document`·metadata·`RecursiveCharacterTextSplitter`
+- fixture retrieval과 live `OpenAIEmbeddings`·`PGVector` 계약
+- citation과 grounded generation
+- `QueryState`, node, edge, 선형 `StateGraph`
+- dependency injection, `TestClient`, 성공/실패 계약 테스트
 
-- 사용자: 구성원, HR 운영 담당자
-- 입력: 자연어 휴가 규정 질문
-- 산출: 규정 citation이 있는 안내 또는 근거 부족 안내
-- 실패 비용: 근거 없는 답변이 잘못된 신청·문의 재작업으로 이어짐
-- 자동화 경계: 휴가를 신청·승인하지 않고 정보 제공만 수행
+## 아직 다루지 않는 것
 
-API 응답의 `business_use_case`는 `hr_leave_policy_self_service`입니다.
+structured output 분류, metadata category filter, conditional edge, 멀티에이전트 loop, 사람 승인 packet은 Week 2·3에서 다룹니다.
 
-## 왜 1/5인가
+## 핵심 코드
 
-최소 3개 역할을 실제 `StateGraph`로 분리하지만, 조건 루프·Tool·권한 판단은 넣지 않습니다. 이 주의 목표는 Agent 수가 아니라 **문서 근거·상태·안전 종료의 계약**입니다.
-
-## 코드에서 확인할 것
-
-- LangChain: `Document`, `RecursiveCharacterTextSplitter`, `RunnableLambda`
-- LangGraph: `QueryState`, node, edge, compile, invoke
-- FastAPI: `POST /query`, `GET /health`
-- 안전성: 근거가 없으면 추측하지 않고 `insufficient_evidence`
-
-## 실행
-
-```bash
-# repository root에서 한 번만 실행
-uv venv
-uv pip install -r requirements.txt
-
-.venv/bin/python -m unittest week1.tests.test_api -v
-.venv/bin/uvicorn week1.app:app --port 8011
-```
+- `POLICY_SOURCE_DOCUMENTS`: 분할 전 합성 규정
+- `split_policy_documents()`: 검색 chunk와 `chunk_id` 생성
+- `PolicyServices`: fixture/live 구현이 공유하는 의존성 경계
+- `QueryState`: graph가 전달하는 상태
+- `build_workflow()`: 선형 graph compile
+- `run_policy_query()`: API·테스트·Notebook의 canonical 진입점
 
 ## Notebook 순서
 
-`01_fastapi → 02_langchain_rag → 03_langgraph_workflow → 04_agent_evaluation → 05_deployment_testing`
+1. `01_request_response_models.ipynb` — Pydantic·FastAPI 요청 경계
+2. `02_documents_and_splitting.ipynb` — `Document`와 splitter
+3. `03_embeddings_pgvector_retrieval.ipynb` — embedding·pgvector·검색 계약
+4. `04_linear_stategraph.ipynb` — state·node·edge·trace
+5. `05_grounded_api_testing.ipynb` — citation·미지원 질문·HTTP 통합 테스트
 
-## 완료 기준
+각 Notebook은 하나의 작은 시나리오만 다루며 `app.py` 구현을 복제하지 않습니다.
 
-- [ ] 지원 질문이 `answered`와 citation을 반환한다.
-- [ ] 근거 부족 질문이 `insufficient_evidence`로 끝난다.
-- [ ] 응답에 `workflow_engine: langgraph`와 3개 역할 실행 기록이 있다.
-- [ ] 자동 테스트를 통과한다.
+## 실행·완료 기준
 
-## 다음 주 준비
+```bash
+.venv/bin/python -m unittest week1.tests.test_policy_qa -v
+APP_MODE=fixture .venv/bin/uvicorn week1.app:app --port 8011
+curl -s -X POST http://127.0.0.1:8011/query \
+  -H 'content-type: application/json' \
+  -d '{"question":"How early should I request vacation?"}'
+```
 
-Week 2에서는 `ExpenseState`와 `conditional edge`를 도입해 `clarify` 또는 `approved_for_next_step`을 선택합니다.
+완료 기준:
 
-## 배포 경계
+- 지원 질문은 근거와 citation을 반환한다.
+- 미지원 질문은 답변을 만들지 않는다.
+- splitter 결과에는 안정적인 `chunk_id`가 있다.
+- API 422, graph trace, fixture/live mode 경계를 설명할 수 있다.
+- 5개 Notebook이 위에서 아래로 실행된다.
 
-`deploy/compose.yaml`은 artifact다. 현재 환경에서 Docker Compose runtime build·기동은 검증하지 않았다.
+Week 2는 이 기초를 반복 설명하지 않고 structured classification·filtered retrieval·conditional routing부터 시작합니다.

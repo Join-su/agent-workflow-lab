@@ -1,14 +1,17 @@
 [project]
 name = "agent-workflow-lab"
-version = "0.1.0"
-description = "Fixture-driven weekly practice lab for AI Agent service development"
-requires-python = ">=3.13"
+version = "0.2.0"
+description = "Three progressive LangChain and LangGraph production-workflow learning labs"
+requires-python = ">=3.11"
 dependencies = [
-  "fastapi>=0.115",
+  "fastapi>=0.115,<1.0",
   "langchain>=1.0,<2.0",
   "langchain-text-splitters>=1.0,<2.0",
+  "langchain-openai>=1.0,<2.0",
+  "langchain-postgres>=0.0.16,<1.0",
   "langgraph>=1.0,<2.0",
-  "uvicorn>=0.30",
+  "psycopg[binary]>=3.2,<4.0",
+  "uvicorn>=0.30,<1.0",
 ]
 
 [tool.uv]
@@ -16,5 +19,6 @@ package = false
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.13.0",
+  "httpx>=0.27,<1.0",
+  "jupyter>=1.1,<2.0",
 ]

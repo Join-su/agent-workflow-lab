@@ -1,65 +1,64 @@
-# Week 3 — LangGraph 제한 재검토·HITL 변경 검토 (난이도 3/5)
+# Week 3 — 운영 장애 대응 멀티에이전트 지휘 시스템 (난이도 3/5)
 
-## 목표
+## 프로젝트 결과
 
-보안 변경 요청을 LangChain policy evidence와 LangGraph `ChangeState`로 검토하고, 제한된 재검토 뒤 `done` 또는 `human_review`로 명시적으로 종료합니다.
+합성 운영 장애를 triage agent, investigator agent, commander agent, risk guard가 명시적 state로 협업해 검토합니다. 시스템은 관찰·검토용 proposal과 사람 승인 packet만 만들며 명령을 실행하지 않습니다.
 
 ```text
-Planner → Evidence Reviewer → Risk Reviewer
-   ↑                              ↓
-   └──── bounded revise ─────→ Synthesizer → done / human_review
+triage_agent → investigator_agent → commander_agent → risk_guard
+                                      ↑                 │
+                                      └── revise once ──┤
+                                                        └→ finish / blocked
 ```
 
-## 현업 적용 시나리오
+## 선행 조건 — 반복 설명하지 않는 것
 
-**IT 운영팀의 변경 요청 위험 검토·승인 준비**를 가정합니다. 운영자는 배포·설정 변경 요청을 제출하고, 시스템은 정책 근거와 위험 사유를 정리해 권한 있는 승인자에게 판단 packet을 제공합니다.
+Week 1의 기본 RAG·citation·API와 Week 2의 structured output·metadata filter·conditional routing을 알고 있다고 가정합니다.
 
-- 사용자: 서비스 운영자, 보안 검토자, 변경 승인자
-- 입력: 변경 요청, 요청자 역할
-- 산출: 완료 가능한 검토 결과 또는 `human_review_packet`
-- 실패 비용: 보안·권한 예외가 검증 없이 운영 변경으로 이어짐
-- 자동화 경계: 배포·설정 변경·정책 예외 승인을 절대 수행하지 않음
+## 이번 주에 새로 배우는 것
 
-API 응답의 `business_use_case`는 `it_change_risk_review`입니다.
+- 역할별 Agent 계약과 `IncidentState` 필드 소유권
+- `revision_count`·`max_revisions` 종료 invariant
+- 조건부 재검토 loop와 fail-closed
+- `dry_run` flag + 관찰 명령 allowlist 이중 검사
+- SEV1/SEV2 `human_approval_required`
+- SEV1/SEV2 `approval_packet`, SEV3 `observation_plan`, audit trace
+- shell 제어 문자·복합 명령 차단과 항상 비어 있는 `executed_commands`
+- 빈 proposal·파괴 명령·잘못된 severity 실패 테스트
 
-## 왜 3/5인가
+## 핵심 코드
 
-Week 2의 조건 분기에 **shared state, bounded loop, 역할 계약, 사람 승인 경계**가 더해집니다. 핵심은 여러 Agent가 아니라, 누가 어떤 상태를 쓰고 어떤 조건에서 다시 계획하며 언제 반드시 끝나는지 증명하는 것입니다.
-
-## Week 2 대비 새 개념
-
-- `ChangeState`와 역할별 읽기·쓰기 책임
-- planner로 되돌아가는 conditional loop
-- `revision_count` 상한
-- `human_review_packet`과 자동 실행 금지
-- 종료 경로 회귀 테스트
-
-## 실행
-
-```bash
-# repository root에서 한 번만 실행
-uv venv
-uv pip install -r requirements.txt
-
-.venv/bin/python -m unittest week3.tests.test_api -v
-.venv/bin/uvicorn week3.app:app --port 8013
-```
+- `IncidentRequest`, `TriageDecision`, `CommandProposal`: 구조화 경계
+- `IncidentServices`: 역할 구현의 fixture/live 주입점
+- `IncidentState`: 근거·판단·proposal·재검토 횟수 공유 상태
+- `proposal_is_safe`: 모델이 붙인 flag만 신뢰하지 않는 결정적 정책
+- `risk_guard`: revise/finish/blocked 상태 결정
+- `run_incident_response()`: canonical 진입점, 항상 `executed_commands: []`
 
 ## Notebook 순서
 
-`01_fastapi → 02_langchain_rag → 03_langgraph_workflow → 04_agent_evaluation → 05_deployment_testing`
+1. `01_multi_agent_state_ownership.ipynb` — 역할과 state 소유권
+2. `02_bounded_revision_loop.ipynb` — 한 번의 재검토와 종료 보장
+3. `03_command_safety_human_approval.ipynb` — 파괴 명령 차단·사람 승인
+4. `04_incident_workflow_failure_tests.ipynb` — 빈 결과·잘못된 입력·비실행 불변조건
 
-## 완료 기준
+## 실행·완료 기준
 
-- [ ] 정책 우회 요청이 최대 1회 revise 후 `human_review`로 끝난다.
-- [ ] packet에 citation, reason, decision_needed가 있다.
-- [ ] 일반 요청은 `done`으로 종료한다.
-- [ ] Graph loop·termination contract test를 통과한다.
+```bash
+.venv/bin/python -m unittest week3.tests.test_incident_command -v
+APP_MODE=fixture .venv/bin/uvicorn week3.app:app --port 8013
+curl -s -X POST http://127.0.0.1:8013/incidents/respond \
+  -H 'content-type: application/json' \
+  -d '{"service":"checkout","summary":"Errors after deployment","severity":"SEV1"}'
+```
 
-## Level 4~5 확장
+완료 기준:
 
-다음 단계는 실제 embedding/vector store·retrieval evaluation·trace 분석(Level 4), MCP·권한·CI·운영 검증(Level 5)이다. 실제 외부 변경은 별도 승인이 필요하다.
+- SEV1 첫 위험 제안은 한 번 수정되고 안전한 관찰 proposal만 사람 검토에 남는다.
+- 지속적인 위험 proposal과 빈 proposal은 `blocked_manual_review`로 닫힌다.
+- `dry_run=True`인 파괴·복합 shell 명령도 allowlist를 통과하지 못한다.
+- SEV1/SEV2는 사람 승인이 필요하고 SEV3는 응답의 `observation_plan`으로 관찰 계획을 전달한다.
+- 모든 경로에서 `executed_commands == []`이다.
+- 4개 Notebook이 이전 주차 기초를 반복하지 않고 고급 제어를 설명한다.
 
-## 배포 경계
-
-`deploy/compose.yaml`은 artifact다. 현재 환경에서 Docker Compose runtime build·기동은 검증하지 않았다.
+실제 Kubernetes client, shell/subprocess, 운영 credential, 자동 실행은 이 3/5 과정의 명시적 제외 범위입니다.
