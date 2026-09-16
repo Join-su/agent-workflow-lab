@@ -28,7 +28,7 @@ structured output 분류, metadata category filter, conditional edge, 멀티에�
 - `PolicyServices`: fixture/live 구현이 공유하는 의존성 경계
 - `QueryState`: graph가 전달하는 상태
 - `build_workflow()`: 선형 graph compile
-- `run_policy_query()`: API·테스트·Notebook의 canonical 진입점
+- `run_policy_query()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않음
 
 ## Notebook 순서
 
@@ -38,7 +38,7 @@ structured output 분류, metadata category filter, conditional edge, 멀티에�
 4. `04_linear_stategraph.ipynb` — state·node·edge·trace
 5. `05_grounded_api_testing.ipynb` — citation·미지원 질문·HTTP 통합 테스트
 
-각 Notebook은 하나의 작은 시나리오만 다루며 `app.py` 구현을 복제하지 않습니다.
+각 Notebook은 하나의 작은 시나리오에서 Pydantic·LangChain·LangGraph·FastAPI primitive를 직접 조립합니다. `app.py`의 완성 함수를 호출하거나 전체 구현을 복제하지 않고, 마지막 해설에서 실습 구조가 app의 어느 흐름으로 확장되는지 연결합니다.
 
 ## 실행·완료 기준
 

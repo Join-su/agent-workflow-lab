@@ -33,7 +33,7 @@ Week 1의 기본 RAG·citation·API와 Week 2의 structured output·metadata fil
 - `IncidentState`: 근거·판단·proposal·재검토 횟수 공유 상태
 - `proposal_is_safe`: 모델이 붙인 flag만 신뢰하지 않는 결정적 정책
 - `risk_guard`: revise/finish/blocked 상태 결정
-- `run_incident_response()`: canonical 진입점, 항상 `executed_commands: []`
+- `run_incident_response()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않으며 app은 항상 `executed_commands: []`
 
 ## Notebook 순서
 
@@ -41,6 +41,8 @@ Week 1의 기본 RAG·citation·API와 Week 2의 structured output·metadata fil
 2. `02_bounded_revision_loop.ipynb` — 한 번의 재검토와 종료 보장
 3. `03_command_safety_human_approval.ipynb` — 파괴 명령 차단·사람 승인
 4. `04_incident_workflow_failure_tests.ipynb` — 빈 결과·잘못된 입력·비실행 불변조건
+
+Notebook은 app graph를 실행하지 않고 역할별 state update, bounded conditional loop, 결정적 command guard, table-driven 실패 평가를 각각 직접 조립합니다. Week 2의 1회 분기와 달리 Week 3 LangGraph 실습은 이전 node로 돌아가는 제한 loop를 학습합니다.
 
 ## 실행·완료 기준
 

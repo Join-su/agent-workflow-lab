@@ -31,7 +31,7 @@ Week 1의 Pydantic/FastAPI 기초, `Document`, splitter, 기본 retrieval, citat
 - `TicketServices.classify/plan`: fixture와 live model 경계
 - `TicketState`: 분류·근거·계획·route 상태
 - `build_workflow()`: 조건부 queue graph
-- `run_ticket_workflow()`: canonical 진입점
+- `run_ticket_workflow()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않음
 
 ## Notebook 순서
 
@@ -39,6 +39,8 @@ Week 1의 Pydantic/FastAPI 기초, `Document`, splitter, 기본 retrieval, citat
 2. `02_metadata_filtered_retrieval.ipynb` — category filter로 오인용 억제
 3. `03_conditional_resolution_routing.ipynb` — 실제 조건부 edge 비교
 4. `04_ticket_workflow_evaluation.ipynb` — 다중 경로 회귀 평가
+
+Notebook은 Week 1과 같은 LangGraph를 다시 사용하더라도 선형 edge가 아닌 conditional routing을 직접 구성합니다. 마지막 평가는 app 호출 대신 `classify → filtered retrieval → evidence gate → route`의 꼭 필요한 축소 pipeline을 조립합니다.
 
 ## 실행·완료 기준
 

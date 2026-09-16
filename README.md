@@ -1,6 +1,6 @@
 # LangChain RAG + LangGraph 현업 Workflow 3주 실습
 
-완성된 애플리케이션을 먼저 실행한 뒤, 주차별 Notebook에서 **그 주에 처음 도입되는 개념만** 작은 현업 시나리오로 분해해 학습합니다. 모든 업무 자료는 합성 fixture이며 실제 휴가 승인, 환불, 계정 변경, 운영 명령을 실행하지 않습니다.
+완성된 애플리케이션을 먼저 실행한 뒤, 주차별 Notebook에서는 app 함수를 호출하지 않고 app에 쓰인 라이브러리 primitive와 필수 pipeline을 작은 현업 시나리오로 직접 조립합니다. 같은 라이브러리도 활용 방식이 다르면 새로운 실습으로 다룹니다. 모든 업무 자료는 합성 fixture이며 실제 휴가 승인, 환불, 계정 변경, 운영 명령을 실행하지 않습니다.
 
 ## 주차별 누적 구조
 
@@ -138,7 +138,7 @@ docker compose down -v
 
 ## 3. Notebook 실행
 
-13개 Notebook은 canonical `app.py`를 import하고 fixture 모드로 실행합니다. `app.py` 전체를 복제하거나 외부 API/DB를 요구하지 않습니다.
+13개 Notebook은 canonical `app.py`를 import하지 않습니다. 각 Notebook 안에서 작은 모델·문서·state·node·edge·router·guard를 직접 정의하고 중간 결과와 실패 경계를 관찰합니다. 외부 API/DB 없이 실행되며, live OpenAI+pgvector의 역할과 데이터 흐름은 교육용 소형 fixture로 재현합니다. `MiniEmbedding` 같은 fixture는 공식 adapter 인터페이스의 완전한 대체 구현이 아닙니다.
 
 ```bash
 mkdir -p /tmp/agent-workflow-notebooks
