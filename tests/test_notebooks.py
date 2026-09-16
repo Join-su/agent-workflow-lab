@@ -30,3 +30,16 @@ class NotebookPythonSyntaxTests(unittest.TestCase):
 
             self.assertIn("policy_retrieval_chain.invoke", source)
             self.assertNotIn("\nretrieval_chain.invoke", source)
+
+    def test_notebooks_are_concise_scenario_guides(self):
+        for notebook in Path(".").glob("week*/notebooks/*.ipynb"):
+            payload = json.loads(notebook.read_text())
+            markdown = ["".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "markdown"]
+            code = ["".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"]
+            joined_markdown = "\n".join(markdown)
+
+            self.assertGreaterEqual(len(markdown), 2, notebook)
+            self.assertGreaterEqual(len(code), 2, notebook)
+            self.assertIn("시나리오", joined_markdown, notebook)
+            self.assertIn("전체 코드 연결", joined_markdown, notebook)
+            self.assertTrue(all("#" in cell for cell in code), notebook)
