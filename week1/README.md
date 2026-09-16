@@ -34,7 +34,10 @@ API 응답의 `business_use_case`는 `hr_leave_policy_self_service`입니다.
 ## 실행
 
 ```bash
-uv sync
+# repository root에서 한 번만 실행
+uv venv
+uv pip install -r requirements.txt
+
 .venv/bin/python -m unittest week1.tests.test_api -v
 .venv/bin/uvicorn week1.app:app --port 8011
 ```

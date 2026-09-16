@@ -37,7 +37,10 @@ Week 2의 조건 분기에 **shared state, bounded loop, 역할 계약, 사람 �
 ## 실행
 
 ```bash
-uv sync
+# repository root에서 한 번만 실행
+uv venv
+uv pip install -r requirements.txt
+
 .venv/bin/python -m unittest week3.tests.test_api -v
 .venv/bin/uvicorn week3.app:app --port 8013
 ```

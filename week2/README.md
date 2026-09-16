@@ -36,7 +36,10 @@ Week 1의 선형 근거 검증에 **공유 state와 `add_conditional_edges`**를
 ## 실행
 
 ```bash
-uv sync
+# repository root에서 한 번만 실행
+uv venv
+uv pip install -r requirements.txt
+
 .venv/bin/python -m unittest week2.tests.test_api -v
 .venv/bin/uvicorn week2.app:app --port 8012
 ```
