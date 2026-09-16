@@ -5,6 +5,9 @@ description = "Fixture-driven weekly practice lab for AI Agent service developme
 requires-python = ">=3.13"
 dependencies = [
   "fastapi>=0.115",
+  "langchain>=1.0,<2.0",
+  "langchain-text-splitters>=1.0,<2.0",
+  "langgraph>=1.0,<2.0",
   "uvicorn>=0.30",
 ]
 
