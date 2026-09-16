@@ -1,0 +1,15 @@
+services:
+  week2:
+    build:
+      context: ..
+      dockerfile: deploy/week2.Dockerfile
+    ports:
+      - "8012:8012"
+    env_file:
+      - ../.env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8012/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
