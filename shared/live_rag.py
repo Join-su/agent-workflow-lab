@@ -7,13 +7,22 @@ key or a running database.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from functools import lru_cache
 import os
+import sys
 from typing import Iterable
 from uuid import NAMESPACE_URL, uuid5
 
 from langchain_core.documents import Document
+
+
+# ``langchain-postgres`` uses psycopg's async connection internally, even from
+# its synchronous PGEngine helpers. Psycopg cannot run on Windows' default
+# Proactor loop, so choose the selector loop before a database engine is made.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 class LiveRagError(RuntimeError):
@@ -62,7 +71,7 @@ class LiveRagSettings:
 
         try:
             retrieval_k = int(os.getenv("RAG_RETRIEVAL_K", "4"))
-            min_relevance = float(os.getenv("RAG_MIN_RELEVANCE", "0.55"))
+            min_relevance = float(os.getenv("RAG_MIN_RELEVANCE", "0.25"))
             embedding_dimensions = int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "1536"))
         except ValueError as error:
             raise LiveRagConfigurationError(
@@ -124,6 +133,18 @@ def retrieve_documents(collection_name: str, query: str) -> list[Document]:
     An empty result is intentional: callers must end safely instead of asking an
     LLM to answer without evidence.
     """
+    documents, _ = retrieve_documents_with_trace(collection_name, query)
+    return documents
+
+
+def retrieve_documents_with_trace(
+    collection_name: str, query: str
+) -> tuple[list[Document], list[dict[str, str | float | bool]]]:
+    """Search pgvector and return safe retrieval evidence for the API response.
+
+    The trace intentionally contains document identifiers and relevance scores,
+    never an embedding vector or an API credential.
+    """
     settings = LiveRagSettings.from_environment()
     try:
         results = _vector_store(collection_name).similarity_search_with_relevance_scores(
@@ -134,7 +155,84 @@ def retrieve_documents(collection_name: str, query: str) -> list[Document]:
         raise
     except Exception as error:
         raise LiveRagError("pgvector 문서 컬렉션을 검색할 수 없습니다.") from error
-    return [document for document, score in results if score >= settings.min_relevance]
+    trace: list[dict[str, str | float | bool]] = []
+    accepted: list[Document] = []
+    for document, score in results:
+        relevance_score = float(score)
+        selected = relevance_score >= settings.min_relevance
+        trace.append(
+            {
+                "document_id": str(document.metadata.get("document_id", "unknown")),
+                "chunk_id": str(document.metadata.get("chunk_id", "unknown")),
+                "relevance_score": round(relevance_score, 4),
+                "selected": selected,
+            }
+        )
+        if selected:
+            accepted.append(document)
+    return accepted, trace
+
+
+def collection_diagnostics(
+    collection_name: str, *, include_chunks: bool = False
+) -> dict[str, object]:
+    """Return a deliberately limited, read-only view of a live collection."""
+    if collection_name not in WEEK_COLLECTIONS.values():
+        raise LiveRagConfigurationError("허용되지 않은 pgvector 컬렉션입니다.")
+    if not is_live_mode():
+        return {
+            "mode": "fixture",
+            "api_key_prefix": None,
+            "collection": collection_name,
+            "chunk_count": 0,
+            "chunks": [],
+        }
+
+    settings = LiveRagSettings.from_environment()
+    try:
+        import psycopg
+        from psycopg import sql
+
+        connection_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://", 1)
+        with psycopg.connect(connection_url) as connection, connection.cursor() as cursor:
+            table = sql.Identifier(collection_name)
+            cursor.execute(sql.SQL("SELECT COUNT(*) FROM {}").format(table))
+            chunk_count = int(cursor.fetchone()[0])
+            chunks: list[dict[str, object]] = []
+            if include_chunks:
+                cursor.execute(
+                    sql.SQL(
+                        "SELECT langchain_metadata->>'document_id', "
+                        "langchain_metadata->>'chunk_id', "
+                        "langchain_metadata->>'source', "
+                        "length(content), vector_dims(embedding), left(content, 700) "
+                        "FROM {} ORDER BY langchain_metadata->>'chunk_id'"
+                    ).format(table)
+                )
+                chunks = [
+                    {
+                        "document_id": row[0] or "unknown",
+                        "chunk_id": row[1] or "unknown",
+                        "source": row[2] or "unknown",
+                        "characters": int(row[3]),
+                        "embedding_dimensions": int(row[4]),
+                        "content_preview": row[5],
+                    }
+                    for row in cursor.fetchall()
+                ]
+    except Exception as error:
+        raise LiveRagError("pgvector 저장 문서 정보를 조회할 수 없습니다.") from error
+
+    return {
+        "mode": "live",
+        "api_key_prefix": f"{settings.api_key[:5]}…",
+        "chat_model": settings.chat_model,
+        "embedding_model": settings.embedding_model,
+        "min_relevance": settings.min_relevance,
+        "collection": collection_name,
+        "chunk_count": chunk_count,
+        "chunks": chunks,
+    }
 
 
 def initialize_collection(collection_name: str, *, reset: bool = False) -> None:

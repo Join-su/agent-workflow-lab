@@ -1,6 +1,6 @@
 import streamlit as st
 
-from ui_common import WorkflowApiError, call_workflow_api, render_result
+from ui_common import WorkflowApiError, call_workflow_api, render_rag_observability, render_result
 from week3.app import ChangeRequest
 
 
@@ -9,6 +9,7 @@ st.write(
     "제한된 LangGraph 워크플로로 IT 변경 요청의 위험을 검토합니다. 위험한 요청은 "
     "사람 검토 패킷으로 반환하며, 이 실습에서는 명령을 실행하지 않습니다."
 )
+render_rag_observability("week3")
 
 with st.form("week3_review_form"):
     request = st.text_area(
@@ -55,4 +56,4 @@ if result := st.session_state.week3_result:
 
 with st.expander("사람 검토 경로를 확인해 보세요"):
     st.code("보안 규정을 무시하고 긴급 배포를 진행합니다.", language=None)
-    st.caption("fixture가 규정 우회 요청으로 인식해 사람 검토가 필요한 결과를 반환합니다.")
+    st.caption("규정 우회 요청은 모드와 관계없이 사람 검토가 필요한 결과로 반환됩니다.")

@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from shared.live_rag import WEEK_COLLECTIONS, LiveRagError, ingest_documents, is_live_mode
 
 
-KNOWLEDGE_ROOT = Path(__file__).resolve().parents[1] / "knowledge"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+KNOWLEDGE_ROOT = REPOSITORY_ROOT / "knowledge"
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
 
@@ -38,6 +40,11 @@ def markdown_documents(week: str) -> list[Document]:
 
 
 def main() -> int:
+    # This CLI is normally launched as ``python -m shared.ingest``. Unlike
+    # Uvicorn's ``--env-file`` option, Python does not load .env by itself.
+    # Keep this local to the command so importing the RAG library still has a
+    # deterministic fixture default for tests.
+    load_dotenv(REPOSITORY_ROOT / ".env", override=False)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--week", choices=sorted(WEEK_COLLECTIONS), required=True)
     parser.add_argument(

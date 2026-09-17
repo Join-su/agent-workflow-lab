@@ -23,6 +23,8 @@
 
 ## 1. Python 환경 설치
 
+실행 중 실제로 어떤 파일이 움직이는지 먼저 보고 싶다면 [아주 쉬운 실행 흐름](docs/runtime-flow-for-beginners.md), [Week 1](docs/week1-running-files.md), [Week 2](docs/week2-running-files.md), [Week 3](docs/week3-running-files.md) 안내를 참고하세요.
+
 저장소 루트에서 실행합니다.
 
 ```bash
@@ -115,10 +117,10 @@ uv pip install -r requirements.txt
 # 전체 자동 테스트
 .venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
 
-# 주차별 FastAPI 서버 예시 (한 번에 하나만 실행)
-.venv/bin/uvicorn week1.app:app --port 8011
-.venv/bin/uvicorn week2.app:app --port 8012
-.venv/bin/uvicorn week3.app:app --port 8013
+# Week 1~3 통합 UI용 FastAPI 서버 (각각 별도 터미널에서 실행)
+.venv/bin/uvicorn --env-file .env week1.app:app --port 8011
+.venv/bin/uvicorn --env-file .env week2.app:app --port 8012
+.venv/bin/uvicorn --env-file .env week3.app:app --port 8013
 
 # Week 1~3 통합 Streamlit UI
 .venv/bin/streamlit run streamlit_app.py
@@ -141,10 +143,10 @@ uv pip install -r requirements.txt
 # 전체 자동 테스트
 .\.venv\Scripts\python.exe -m unittest discover -s . -p "test_*.py" -v
 
-# FastAPI 서버: 필요한 주차 하나만 실행하고 Ctrl+C로 종료
-.\.venv\Scripts\uvicorn.exe week1.app:app --port 8011
-.\.venv\Scripts\uvicorn.exe week2.app:app --port 8012
-.\.venv\Scripts\uvicorn.exe week3.app:app --port 8013
+# Week 1~3 통합 UI용 FastAPI 서버: 각각 별도 PowerShell에서 실행
+.\.venv\Scripts\uvicorn.exe --env-file .env week1.app:app --port 8011
+.\.venv\Scripts\uvicorn.exe --env-file .env week2.app:app --port 8012
+.\.venv\Scripts\uvicorn.exe --env-file .env week3.app:app --port 8013
 
 # Week 1~3 통합 Streamlit UI: 필요한 FastAPI 서버를 먼저 실행
 .\.venv\Scripts\streamlit.exe run streamlit_app.py
@@ -157,6 +159,17 @@ FastAPI 서버는 각 주소의 `/docs`에서 대화형 API 문서를 제공합�
 - Week 3: `http://127.0.0.1:8013/docs` (`POST /review-change`)
 
 Streamlit은 실행 후 표시되는 로컬 주소(기본 `http://localhost:8501`)를 브라우저에서 엽니다. 상단 메뉴에서 Week 1~3을 전환하고 폼을 제출하면, 해당 주차 FastAPI의 HTTP API로부터 workflow 결과·근거·실행 trace를 받습니다. 기본 주소는 `127.0.0.1:8011`~`8013`이며, 배포 환경에서는 `WEEK1_API_URL`, `WEEK2_API_URL`, `WEEK3_API_URL`로 각각 바꿀 수 있습니다.
+
+### Live RAG 연결 확인
+
+각 Week 화면의 **Live RAG 연결 확인** 패널은 해당 FastAPI의 `GET /diagnostics`를 호출합니다. 이 패널에서 다음을 확인할 수 있습니다.
+
+- OpenAI API 키 앞 5자만 표시한 연결 식별자(전체 키는 전송·표시하지 않음)
+- pgvector 컬렉션명, 저장된 문서 청크 수, embedding 모델과 벡터 차원
+- 토글을 켰을 때 문서 ID·청크 ID·원본 경로·본문 미리보기
+- 질의 후 Retriever가 반환한 유사도 점수와 실제 LLM 근거로 선택된 청크
+
+임베딩 벡터 전문과 DB 연결 문자열은 API 응답과 UI 어느 곳에도 노출하지 않습니다.
 
 ## Notebook 순서
 

@@ -13,9 +13,10 @@ from shared.live_rag import (
     WEEK_COLLECTIONS,
     LiveRagError,
     citations_for,
+    collection_diagnostics,
     generate_grounded_text,
     is_live_mode,
-    retrieve_documents,
+    retrieve_documents_with_trace,
 )
 
 
@@ -30,6 +31,7 @@ class ExpenseState(TypedDict, total=False):
     receipt_attached: bool
     purpose: str
     policy_docs: list[Document]
+    retrieval_trace: list[dict[str, str | float | bool]]
     missing: list[str]
     citations: list[dict[str, str]]
     required_follow_up: str | None
@@ -57,10 +59,17 @@ policy_retrieval_chain = RunnableLambda(_retrieve_policy_documents)
 
 
 def policy_retriever_node(state: ExpenseState) -> ExpenseState:
-    documents = policy_retrieval_chain.invoke(state["purpose"])
+    if is_live_mode():
+        documents, retrieval_trace = retrieve_documents_with_trace(
+            WEEK_COLLECTIONS["week2"], state["purpose"]
+        )
+    else:
+        documents = policy_retrieval_chain.invoke(state["purpose"])
+        retrieval_trace = []
     return {
         "policy_docs": documents,
         "citations": citations_for(documents),
+        "retrieval_trace": retrieval_trace,
         "agents_run": ["policy_retriever"],
     }
 
@@ -154,12 +163,14 @@ def run_expense_review(payload: ExpenseRequest) -> dict:
     state = WORKFLOW.invoke({**payload.model_dump(), "agents_run": []})
     return {
         "difficulty": 2,
+        "mode": "live" if is_live_mode() else "fixture",
         "business_use_case": "expense_claim_precheck",
         "workflow_engine": "langgraph",
         "agents_run": state["agents_run"],
         "status": state["status"],
         "required_follow_up": state["required_follow_up"],
         "citations": state["citations"],
+        "retrieval_trace": state.get("retrieval_trace", []),
         "review_summary": state.get("review_summary"),
     }
 
@@ -175,6 +186,18 @@ def create_app() -> FastAPI:
             "workflow_engine": "langgraph",
             "live_mode": is_live_mode(),
         }
+
+    @app.get("/diagnostics")
+    def diagnostics(include_chunks: bool = False) -> dict:
+        try:
+            return collection_diagnostics(
+                WEEK_COLLECTIONS["week2"], include_chunks=include_chunks
+            )
+        except LiveRagError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "live_rag_unavailable", "message": str(error)},
+            ) from error
 
     @app.post("/review")
     def review(payload: ExpenseRequest) -> dict:

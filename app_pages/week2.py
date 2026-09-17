@@ -1,6 +1,6 @@
 import streamlit as st
 
-from ui_common import WorkflowApiError, call_workflow_api, render_result
+from ui_common import WorkflowApiError, call_workflow_api, render_rag_observability, render_result
 from week2.app import ExpenseRequest
 
 
@@ -9,6 +9,7 @@ st.write(
     "출장비 청구 내용을 입력해 읽기 전용 규정 검토를 실행합니다. LangGraph 워크플로가 "
     "규정 근거를 검색하고 필수 정보를 확인한 뒤 처리 경로를 결정합니다."
 )
+render_rag_observability("week2")
 
 with st.form("week2_review_form"):
     amount = st.number_input(

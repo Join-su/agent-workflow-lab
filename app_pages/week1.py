@@ -1,6 +1,6 @@
 import streamlit as st
 
-from ui_common import WorkflowApiError, call_workflow_api, render_result
+from ui_common import WorkflowApiError, call_workflow_api, render_rag_observability, render_result
 
 
 st.title("Week 1 · HR 규정 RAG 질의응답", icon=":material/menu_book:")
@@ -8,6 +8,7 @@ st.write(
     "로컬 HR 휴가 규정에 질문하세요. 워크플로가 근거 문서를 검색하고 답변을 만든 뒤, "
     "출처가 있는지 확인합니다."
 )
+render_rag_observability("week1")
 
 with st.form("week1_query_form"):
     question = st.text_input(
@@ -46,4 +47,4 @@ if result := st.session_state.week1_result:
 
 with st.expander("근거 부족 결과를 확인해 보세요"):
     st.code("오늘 점심 메뉴는 무엇인가요?", language=None)
-    st.caption("fixture 규정에 없는 질문이므로 근거 부족으로 종료됩니다.")
+    st.caption("적재된 규정 문서에 없는 질문은 모드와 관계없이 근거 부족으로 종료됩니다.")

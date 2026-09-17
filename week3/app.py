@@ -13,9 +13,10 @@ from shared.live_rag import (
     WEEK_COLLECTIONS,
     LiveRagError,
     citations_for,
+    collection_diagnostics,
     generate_grounded_text,
     is_live_mode,
-    retrieve_documents,
+    retrieve_documents_with_trace,
 )
 
 
@@ -28,6 +29,7 @@ class ChangeState(TypedDict, total=False):
     request: str
     user_role: str
     policy_docs: list[Document]
+    retrieval_trace: list[dict[str, str | float | bool]]
     citations: list[dict[str, str]]
     draft: str
     revision_count: int
@@ -60,10 +62,17 @@ def planner_node(state: ChangeState) -> ChangeState:
     revision_count = state.get("revision_count", 0)
     if state.get("revision_requested"):
         revision_count += 1
-    documents = policy_retrieval_chain.invoke(state["request"])
+    if is_live_mode():
+        documents, retrieval_trace = retrieve_documents_with_trace(
+            WEEK_COLLECTIONS["week3"], state["request"]
+        )
+    else:
+        documents = policy_retrieval_chain.invoke(state["request"])
+        retrieval_trace = []
     return {
         "policy_docs": documents,
         "citations": citations_for(documents),
+        "retrieval_trace": retrieval_trace,
         "draft": (
             generate_grounded_text(
                 state["request"],
@@ -174,12 +183,14 @@ def run_change_review(payload: ChangeRequest) -> dict:
     state = WORKFLOW.invoke({**payload.model_dump(), "revision_count": 0, "agents_run": []})
     return {
         "difficulty": 3,
+        "mode": "live" if is_live_mode() else "fixture",
         "business_use_case": "it_change_risk_review",
         "workflow_engine": "langgraph",
         "agents_run": state["agents_run"],
         "revision_count": state["revision_count"],
         "status": state["status"],
         "citations": state["citations"],
+        "retrieval_trace": state.get("retrieval_trace", []),
         "human_review_packet": state["human_review_packet"],
         "draft": state["draft"],
     }
@@ -196,6 +207,18 @@ def create_app() -> FastAPI:
             "workflow_engine": "langgraph",
             "live_mode": is_live_mode(),
         }
+
+    @app.get("/diagnostics")
+    def diagnostics(include_chunks: bool = False) -> dict:
+        try:
+            return collection_diagnostics(
+                WEEK_COLLECTIONS["week3"], include_chunks=include_chunks
+            )
+        except LiveRagError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "live_rag_unavailable", "message": str(error)},
+            ) from error
 
     @app.post("/review-change")
     def review_change(payload: ChangeRequest) -> dict:

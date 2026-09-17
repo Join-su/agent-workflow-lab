@@ -46,9 +46,20 @@ class LiveRagSettingsTests(unittest.TestCase):
                 metadata={"document_id": "leave-policy", "chunk_id": "leave-policy-01"},
             )
         ]
+        retrieval_trace = [
+            {
+                "document_id": "leave-policy",
+                "chunk_id": "leave-policy-01",
+                "relevance_score": 0.8,
+                "selected": True,
+            }
+        ]
         with (
             patch.dict(os.environ, {"APP_MODE": "live"}, clear=True),
-            patch("week1.app.retrieve_documents", return_value=evidence) as retrieve,
+            patch(
+                "week1.app.retrieve_documents_with_trace",
+                return_value=(evidence, retrieval_trace),
+            ) as retrieve,
             patch("week1.app.generate_grounded_text", return_value="휴가는 3일 전에 신청하세요.") as generate,
         ):
             result = run_query("휴가 신청은 언제 하나요?")
@@ -62,8 +73,8 @@ class LiveRagSettingsTests(unittest.TestCase):
     def test_live_without_retrieved_evidence_ends_safely(self):
         with (
             patch.dict(os.environ, {"APP_MODE": "live"}, clear=True),
-            patch("week2.app.retrieve_documents", return_value=[]),
-            patch("week3.app.retrieve_documents", return_value=[]),
+            patch("week2.app.retrieve_documents_with_trace", return_value=([], [])),
+            patch("week3.app.retrieve_documents_with_trace", return_value=([], [])),
         ):
             week2 = run_expense_review(
                 ExpenseRequest(amount=10000, receipt_attached=True, purpose="고객 미팅")

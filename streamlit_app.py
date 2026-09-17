@@ -13,10 +13,15 @@ for result_key in ("week1_result", "week2_result", "week3_result"):
 page = st.navigation(
     [
         st.Page(
+            "app_pages/rag_dashboard.py",
+            title="RAG 연결 현황",
+            icon=":material/hub:",
+            default=True,
+        ),
+        st.Page(
             "app_pages/week1.py",
             title="Week 1 · 규정 질의응답",
             icon=":material/menu_book:",
-            default=True,
         ),
         st.Page(
             "app_pages/week2.py",
@@ -34,10 +39,10 @@ page = st.navigation(
 
 with st.sidebar:
     st.subheader("에이전트 워크플로 실습")
-    st.caption("Week 1~3 LangChain RAG · LangGraph 실습 화면")
+    st.caption("OpenAI · pgvector · LangGraph 실습")
     st.info(
-        "이 화면은 로컬 fixture 워크플로를 직접 실행합니다. "
-        "실시간 LLM, 데이터베이스, 쓰기 권한 도구는 사용하지 않습니다.",
+        "먼저 RAG 연결 현황에서 API · 문서 청크 · Retriever 상태를 확인한 뒤 "
+        "Week별 실습을 실행하세요.",
         icon=":material/info:",
     )
 

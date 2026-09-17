@@ -4,6 +4,8 @@
 
 대상 환경은 Windows 명령 프롬프트(cmd.exe)입니다. PostgreSQL을 Windows에 직접 설치하지 않고, Docker Desktop 안에서 PostgreSQL과 pgvector를 함께 실행합니다.
 
+Windows에서는 `langchain-postgres`가 psycopg의 비동기 연결을 내부적으로 사용합니다. 앱은 이를 위해 Selector 이벤트 루프를 자동 설정하므로 별도의 asyncio 설정은 필요하지 않습니다.
+
 ## 1. 완성 후 구조
 
 ```text
@@ -89,7 +91,7 @@ DATABASE_URL=postgresql+psycopg://app_user:replace-with-a-strong-local-password@
 # fixture 또는 live. 실 API/DB 사용은 live일 때만 한다.
 APP_MODE=live
 RAG_RETRIEVAL_K=4
-RAG_MIN_RELEVANCE=0.55
+RAG_MIN_RELEVANCE=0.25
 ```
 
 현재 `.env`에 있는 `MODEL_API_KEY`는 어떤 API 제공자용인지 명확하지 않습니다. 아래 live 구현 단계 전에 **OpenAI 공식 API를 사용할지**, 혹은 OpenAI 호환 서비스라면 **base URL과 모델명**을 확정합니다. 이 안내서는 OpenAI 공식 API를 기준으로 작성합니다.
@@ -165,7 +167,6 @@ live 앱 코드가 추가되면 아래 순서로 실행합니다.
 3. 주차별 예제 정책 문서를 적재합니다. 적재기는 문서를 읽고, 분할하고, embedding을 생성하고, 주차별 pgvector table에 저장합니다. 일반 적재는 같은 청크 ID를 upsert하며 기존 table을 지우지 않습니다.
 
    ```bat
-   # live 구현 후 제공될 명령 예시
    .venv\Scripts\python.exe -m shared.ingest --week week1
    .venv\Scripts\python.exe -m shared.ingest --week week2
    .venv\Scripts\python.exe -m shared.ingest --week week3
@@ -177,12 +178,14 @@ live 앱 코드가 추가되면 아래 순서로 실행합니다.
    .venv\Scripts\python.exe -m shared.ingest --week week1 --reset
    ```
 
-4. FastAPI 서버를 실행합니다.
+4. FastAPI 서버를 실행합니다. `--env-file .env`가 없으면 Uvicorn 프로세스는
+   `.env`를 읽지 않아 `APP_MODE` 기본값인 `fixture`로 실행될 수 있습니다. 통합
+   Streamlit UI에서는 아래 세 서버를 **각각 별도 터미널**에서 실행합니다.
 
    ```bat
-   .venv\Scripts\uvicorn.exe week1.app:app --port 8011
-   .venv\Scripts\uvicorn.exe week2.app:app --port 8012
-   .venv\Scripts\uvicorn.exe week3.app:app --port 8013
+   .venv\Scripts\uvicorn.exe --env-file .env week1.app:app --port 8011
+   .venv\Scripts\uvicorn.exe --env-file .env week2.app:app --port 8012
+   .venv\Scripts\uvicorn.exe --env-file .env week3.app:app --port 8013
    ```
 
 5. 각 `http://127.0.0.1:801N/docs`에서 API를 확인합니다.

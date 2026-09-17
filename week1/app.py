@@ -13,9 +13,10 @@ from shared.live_rag import (
     WEEK_COLLECTIONS,
     LiveRagError,
     citations_for,
+    collection_diagnostics,
     generate_grounded_text,
     is_live_mode,
-    retrieve_documents,
+    retrieve_documents_with_trace,
 )
 
 
@@ -26,6 +27,7 @@ class QueryRequest(BaseModel):
 class QueryState(TypedDict, total=False):
     question: str
     retrieved_docs: list[Document]
+    retrieval_trace: list[dict[str, str | float | bool]]
     answer: str | None
     citations: list[dict[str, str]]
     status: str
@@ -56,8 +58,16 @@ retrieval_chain = RunnableLambda(_retrieve_documents)
 
 
 def retrieve_node(state: QueryState) -> QueryState:
+    if is_live_mode():
+        documents, retrieval_trace = retrieve_documents_with_trace(
+            WEEK_COLLECTIONS["week1"], state["question"]
+        )
+    else:
+        documents = retrieval_chain.invoke(state["question"])
+        retrieval_trace = []
     return {
-        "retrieved_docs": retrieval_chain.invoke(state["question"]),
+        "retrieved_docs": documents,
+        "retrieval_trace": retrieval_trace,
         "agents_run": ["retriever"],
     }
 
@@ -117,12 +127,14 @@ def run_query(question: str) -> dict:
     state = WORKFLOW.invoke({"question": question, "agents_run": []})
     return {
         "difficulty": 1,
+        "mode": "live" if is_live_mode() else "fixture",
         "business_use_case": "hr_leave_policy_self_service",
         "workflow_engine": "langgraph",
         "agents_run": state["agents_run"],
         "status": state["status"],
         "answer": state["answer"],
         "citations": state["citations"],
+        "retrieval_trace": state.get("retrieval_trace", []),
         "reason": state["reason"],
     }
 
@@ -151,6 +163,18 @@ def create_app() -> FastAPI:
             "workflow_engine": "langgraph",
             "live_mode": is_live_mode(),
         }
+
+    @app.get("/diagnostics")
+    def diagnostics(include_chunks: bool = False) -> dict:
+        try:
+            return collection_diagnostics(
+                WEEK_COLLECTIONS["week1"], include_chunks=include_chunks
+            )
+        except LiveRagError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "live_rag_unavailable", "message": str(error)},
+            ) from error
 
     @app.post("/query")
     def query(payload: QueryRequest) -> dict:
