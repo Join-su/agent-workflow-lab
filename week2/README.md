@@ -1,64 +1,63 @@
-# Week 2 — LangChain 정책 RAG·조건 라우팅 Graph (난이도 2/5)
+# Week 2 — 고객지원 티켓 분류·해결 계획 (난이도 2/5)
 
-## 목표
+## 프로젝트 결과
 
-출장비 정책 근거를 LangChain document로 읽고, LangGraph `ExpenseState`에서 누락 증빙에 따라 다음 경로를 선택합니다.
+고객 문의를 category·priority로 구조화하고, 해당 category의 합성 playbook만 검색해 읽기 전용 해결 계획을 만듭니다. 일반 문의는 담당 queue, 광범위 장애는 incident escalation으로 보냅니다. 환불·계정 변경·티켓 종료는 실행하지 않습니다.
 
 ```text
-Policy Retriever → Evidence Extractor → Policy Reviewer → Risk Router
-                                                     ├→ clarify
-                                                     └→ approved_for_next_step
+classify → metadata-filtered retrieval → plan → route
+                                              ├→ incident_escalation
+                                              └→ category queue
 ```
 
-## 현업 적용 시나리오
+## 선행 조건 — 반복 설명하지 않는 것
 
-**재무 운영팀의 출장비 정산 사전 검토**를 가정합니다. 직원이 정산 요청을 제출하면, 담당자는 영수증·업무 목적 같은 최소 증빙이 갖춰졌는지 먼저 분류합니다.
+Week 1의 Pydantic/FastAPI 기초, `Document`, splitter, 기본 retrieval, citation, 선형 graph는 이미 알고 있다고 가정합니다.
 
-- 사용자: 출장자, 재무 운영 담당자
-- 입력: 금액, 영수증 첨부 여부, 업무 목적
-- 산출: 보완 요청 또는 다음 검토 단계 전달과 정책 citation
-- 실패 비용: 불완전한 정산의 반복 반려·지급 지연·감사 추적성 저하
-- 자동화 경계: 지급·승인·회계 전표 처리는 수행하지 않음
+## 이번 주에 새로 배우는 것
 
-API 응답의 `business_use_case`는 `expense_claim_precheck`입니다.
+- `TicketClassification` structured output
+- richer domain state와 분류 결과 소유권
+- pgvector metadata `filter`
+- `add_conditional_edges`와 실제 queue node
+- billing/access/technical/fallback 다중 경로 평가
+- category·route·citation 일관성 검사
+- 검색 근거가 없으면 모델 planner를 호출하지 않고 `needs_more_information`으로 종료
 
-## 왜 2/5인가
+## 핵심 코드
 
-Week 1의 선형 근거 검증에 **공유 state와 `add_conditional_edges`**를 추가합니다. 비용 지급·승인은 수행하지 않으며, Agent는 근거 있는 보완 요청 또는 다음 검토 단계 전달만 합니다.
-
-## Week 1 대비 새 개념
-
-- `ExpenseState`의 상태 소유권
-- `missing`, `citations`, `route`를 분리하는 구조화된 review state
-- terminal node와 conditional edge
-- `clarify`를 안전한 보류 경로로 다루는 방법
-
-## 실행
-
-```bash
-# repository root에서 한 번만 실행
-uv venv
-uv pip install -r requirements.txt
-
-.venv/bin/python -m unittest week2.tests.test_api -v
-.venv/bin/uvicorn week2.app:app --port 8012
-```
+- `TicketRequest`: 티켓 입력 계약
+- `TicketClassification`: 제한된 category·priority 결과
+- `TicketServices.classify/plan`: fixture와 live model 경계
+- `TicketState`: 분류·근거·계획·route 상태
+- `build_workflow()`: 조건부 queue graph
+- `run_ticket_workflow()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않음
 
 ## Notebook 순서
 
-`01_fastapi → 02_langchain_rag → 03_langgraph_workflow → 04_agent_evaluation → 05_deployment_testing`
+1. `01_structured_ticket_classification.ipynb` — 자연어를 제한된 schema로 변환
+2. `02_metadata_filtered_retrieval.ipynb` — category filter로 오인용 억제
+3. `03_conditional_resolution_routing.ipynb` — 실제 조건부 edge 비교
+4. `04_ticket_workflow_evaluation.ipynb` — 다중 경로 회귀 평가
 
-## 완료 기준
+Notebook은 Week 1과 같은 LangGraph를 다시 사용하더라도 선형 edge가 아닌 conditional routing을 직접 구성합니다. 마지막 평가는 app 호출 대신 `classify → filtered retrieval → evidence gate → route`의 꼭 필요한 축소 pipeline을 조립합니다.
 
-- [ ] 영수증 누락은 `clarify`, `receipt_required`로 끝난다.
-- [ ] 충족 입력은 `approved_for_next_step`으로 간다.
-- [ ] citation과 4개 Agent 실행 기록이 반환된다.
-- [ ] 두 경로의 graph contract test가 있다.
+## 실행·완료 기준
 
-## 다음 주 준비
+```bash
+.venv/bin/python -m unittest week2.tests.test_ticket_workflow -v
+APP_MODE=fixture .venv/bin/uvicorn week2.app:app --port 8012
+curl -s -X POST http://127.0.0.1:8012/tickets/plan \
+  -H 'content-type: application/json' \
+  -d '{"subject":"Duplicate invoice","description":"Charged twice","customer_tier":"standard"}'
+```
 
-Week 3에서는 conditional edge를 loop로 확장하되 `revision_count`로 재검토를 제한하고, 위험한 결론은 사람 검토 packet으로 넘깁니다.
+완료 기준:
 
-## 배포 경계
+- billing과 access는 서로 다른 playbook·queue를 사용한다.
+- urgent outage는 category queue보다 escalation이 우선한다.
+- 분류 category와 citation category가 일치한다.
+- invalid tier는 422로 거부된다.
+- 4개 Notebook에서 Week 1 기초를 재강의하지 않고 새 개념을 설명할 수 있다.
 
-`deploy/compose.yaml`은 artifact다. 현재 환경에서 Docker Compose runtime build·기동은 검증하지 않았다.
+Week 3는 이 structured routing을 선행 조건으로 두고 역할별 Agent·bounded loop·HITL 안전 제어를 추가합니다.
