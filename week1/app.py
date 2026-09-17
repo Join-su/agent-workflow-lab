@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import operator
-from dataclasses import dataclass
-from typing import Annotated, Callable, Literal, Protocol, TypedDict
+from typing import Annotated, TypedDict
 
 from fastapi import FastAPI, HTTPException, Response
 from langchain_core.documents import Document
+from langchain_core.runnables import RunnableLambda
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
@@ -23,20 +23,14 @@ class QueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=300)
 
 
-@dataclass
-class PolicyServices:
-    retriever: Retriever
-    answer: Callable[[str, list[Document]], str]
-    mode: Literal["fixture", "live"]
-
-
 class QueryState(TypedDict, total=False):
     question: str
-    documents: list[Document]
+    retrieved_docs: list[Document]
     answer: str | None
-    status: str
     citations: list[dict[str, str]]
-    steps: Annotated[list[str], operator.add]
+    status: str
+    reason: str | None
+    agents_run: Annotated[list[str], operator.add]
 
 
 SOURCE_DOCUMENT = Document(
@@ -93,45 +87,51 @@ def answer_node(state: QueryState) -> QueryState:
 def evidence_guard_node(state: QueryState) -> QueryState:
     if state["retrieved_docs"]:
         return {
-            "status": "answered" if documents else "insufficient_evidence",
-            "citations": citations(documents),
-            "steps": ["grounding_guard"],
+            "status": "answered",
+            "reason": None,
+            "agents_run": ["evidence_guard"],
         }
-
-    graph = StateGraph(QueryState)
-    graph.add_node("retrieve", retrieve)
-    graph.add_node("answer", answer)
-    graph.add_node("grounding_guard", guard)
-    graph.add_edge(START, "retrieve")
-    graph.add_edge("retrieve", "answer")
-    graph.add_edge("answer", "grounding_guard")
-    graph.add_edge("grounding_guard", END)
-    return graph.compile()
-
-
-def run_policy_query(question: str, services: PolicyServices | None = None) -> dict:
-    services = services or create_fixture_services()
-    state = build_workflow(services).invoke({"question": question, "steps": []})
     return {
-        "difficulty": 1,
-        "business_use_case": "hr_policy_qa",
-        "mode": services.mode,
-        "status": state["status"],
-        "answer": state["answer"],
-        "citations": state["citations"],
-        "steps": state["steps"],
+        "status": "insufficient_evidence",
+        "reason": "no_matching_policy",
+        "agents_run": ["evidence_guard"],
     }
 
 
-def create_app(services: PolicyServices | None = None, *, mode: str | None = None) -> FastAPI:
-    selected_mode = resolve_mode(mode)
-    if services is None:
-        services = create_live_services() if selected_mode == "live" else create_fixture_services()
-    api = FastAPI(title="Week 1 — Grounded HR Policy Q&A", version="3.0.0")
+def build_graph():
+    graph = StateGraph(QueryState)
+    graph.add_node("retriever", retrieve_node)
+    graph.add_node("answer", answer_node)
+    graph.add_node("evidence_guard", evidence_guard_node)
+    graph.add_edge(START, "retriever")
+    graph.add_edge("retriever", "answer")
+    graph.add_edge("answer", "evidence_guard")
+    graph.add_edge("evidence_guard", END)
+    return graph.compile()
+
+
+WORKFLOW = build_graph()
+
+
+def run_query(question: str) -> dict:
+    state = WORKFLOW.invoke({"question": question, "agents_run": []})
+    return {
+        "difficulty": 1,
+        "business_use_case": "hr_leave_policy_self_service",
+        "workflow_engine": "langgraph",
+        "agents_run": state["agents_run"],
+        "status": state["status"],
+        "answer": state["answer"],
+        "citations": state["citations"],
+        "reason": state["reason"],
+    }
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Week 1 — LangChain Policy Q&A", version="2.0.0")
 
     @app.get("/")
     def root() -> dict[str, str]:
-        """Provide a browser-friendly entry point for the API service."""
         return {
             "message": "Week 1 policy Q&A API is running.",
             "health": "/health",
@@ -141,7 +141,6 @@ def create_app(services: PolicyServices | None = None, *, mode: str | None = Non
 
     @app.get("/favicon.ico", include_in_schema=False, status_code=204)
     def favicon() -> Response:
-        """Avoid a noisy 404 when a browser requests the optional site icon."""
         return Response(status_code=204)
 
     @app.get("/health")
@@ -153,7 +152,7 @@ def create_app(services: PolicyServices | None = None, *, mode: str | None = Non
             "live_mode": is_live_mode(),
         }
 
-    @api.post("/query")
+    @app.post("/query")
     def query(payload: QueryRequest) -> dict:
         try:
             return run_query(payload.question)
@@ -163,7 +162,7 @@ def create_app(services: PolicyServices | None = None, *, mode: str | None = Non
                 detail={"code": "live_rag_unavailable", "message": str(error)},
             ) from error
 
-    return api
+    return app
 
 
 app = create_app()
