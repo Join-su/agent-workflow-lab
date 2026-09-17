@@ -28,6 +28,17 @@ class Week3ChangeRequestTests(unittest.TestCase):
         )
         self.assertEqual(body["human_review_packet"]["reason"], "policy_bypass_requested")
 
+    def test_emergency_deployment_also_requires_human_review_under_the_policy(self):
+        response = self.client.post(
+            "/review-change",
+            json={"request": "긴급 배포로 장애를 완화하고 싶습니다.", "user_role": "manager"},
+        )
+
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body["status"], "human_review")
+        self.assertEqual(body["human_review_packet"]["reason"], "policy_bypass_requested")
+
 
 if __name__ == "__main__":
     unittest.main()

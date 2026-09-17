@@ -3,12 +3,20 @@ from __future__ import annotations
 import operator
 from typing import Annotated, TypedDict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Response
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
+from shared.live_rag import (
+    WEEK_COLLECTIONS,
+    LiveRagError,
+    citations_for,
+    generate_grounded_text,
+    is_live_mode,
+    retrieve_documents,
+)
 
 
 class QueryRequest(BaseModel):
@@ -26,7 +34,7 @@ class QueryState(TypedDict, total=False):
 
 
 SOURCE_DOCUMENT = Document(
-    page_content="휴가 신청은 시작일 기준 최소 3일 전에 팀장 승인을 받아야 합니다.",
+    page_content="휴가 신청은 시작일 기준 영업일 3일 전까지 하며, 인수인계 대상을 입력해야 합니다.",
     metadata={"document_id": "leave-policy", "chunk_id": "leave-policy-01"},
 )
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=120, chunk_overlap=0)
@@ -34,6 +42,8 @@ POLICY_CHUNKS = SPLITTER.split_documents([SOURCE_DOCUMENT])
 
 
 def _retrieve_documents(question: str) -> list[Document]:
+    if is_live_mode():
+        return retrieve_documents(WEEK_COLLECTIONS["week1"], question)
     tokens = set(question.replace("?", "").split())
     return [
         document
@@ -58,14 +68,18 @@ def answer_node(state: QueryState) -> QueryState:
         return {"answer": None, "citations": [], "agents_run": ["answer"]}
 
     document = evidence[0]
+    answer = (
+        generate_grounded_text(
+            state["question"],
+            evidence,
+            task="Answer the employee's HR policy question concisely in Korean.",
+        )
+        if is_live_mode()
+        else document.page_content
+    )
     return {
-        "answer": document.page_content,
-        "citations": [
-            {
-                "document_id": str(document.metadata["document_id"]),
-                "chunk_id": str(document.metadata["chunk_id"]),
-            }
-        ],
+        "answer": answer,
+        "citations": citations_for(evidence),
         "agents_run": ["answer"],
     }
 
@@ -116,13 +130,39 @@ def run_query(question: str) -> dict:
 def create_app() -> FastAPI:
     app = FastAPI(title="Week 1 — LangChain Policy Q&A", version="2.0.0")
 
+    @app.get("/")
+    def root() -> dict[str, str]:
+        """Provide a browser-friendly entry point for the API service."""
+        return {
+            "message": "Week 1 policy Q&A API is running.",
+            "health": "/health",
+            "query": "POST /query",
+            "docs": "/docs",
+        }
+
+    @app.get("/favicon.ico", include_in_schema=False, status_code=204)
+    def favicon() -> Response:
+        """Avoid a noisy 404 when a browser requests the optional site icon."""
+        return Response(status_code=204)
+
     @app.get("/health")
-    def health() -> dict[str, str | int]:
-        return {"status": "ok", "difficulty": 1, "workflow_engine": "langgraph"}
+    def health() -> dict[str, str | int | bool]:
+        return {
+            "status": "ok",
+            "difficulty": 1,
+            "workflow_engine": "langgraph",
+            "live_mode": is_live_mode(),
+        }
 
     @app.post("/query")
     def query(payload: QueryRequest) -> dict:
-        return run_query(payload.question)
+        try:
+            return run_query(payload.question)
+        except LiveRagError as error:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "live_rag_unavailable", "message": str(error)},
+            ) from error
 
     return app
 

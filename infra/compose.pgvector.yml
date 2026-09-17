@@ -1,0 +1,20 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    container_name: agent-workflow-pgvector
+    environment:
+      POSTGRES_DB: agent_workflow
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d agent_workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgvector_data:
