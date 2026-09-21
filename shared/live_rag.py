@@ -207,7 +207,7 @@ def collection_diagnostics(
         with psycopg.connect(connection_url) as connection, connection.cursor() as cursor:
             table = sql.Identifier(collection_name)
             cursor.execute(sql.SQL("SELECT COUNT(*) FROM {}").format(table))
-            chunk_count = int(cursor.fetchone()[0])
+            chunk_count = int(cursor.fetchone()[0]) # fetchone() 한행을 가져옴
             chunks: list[dict[str, object]] = []
             if include_chunks:
                 cursor.execute(
@@ -228,7 +228,7 @@ def collection_diagnostics(
                         "embedding_dimensions": int(row[4]),
                         "content_preview": row[5],
                     }
-                    for row in cursor.fetchall()
+                    for row in cursor.fetchall() # fetchall() 남은 모든 행을 가져옴
                 ]
     except Exception as error:
         raise LiveRagError("pgvector 저장 문서 정보를 조회할 수 없습니다.") from error

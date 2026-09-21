@@ -116,7 +116,8 @@ def classify_expense(payload: ExpenseRequest) -> ExpenseClassification:
     )
     try:
         return ExpenseClassification.model_validate(
-            raw if isinstance(raw, dict) else raw.model_dump()
+            raw if isinstance(raw, dict) else raw.model_dump() 
+            # 직렬화 라기 보단 dict화 (직렬화는 model_dump_json : 문자열)
         )
     except ValidationError as error:
         # An out-of-schema category must surface, not become "other" silently.
@@ -239,11 +240,11 @@ def insufficient_evidence_node(_: ExpenseState) -> ExpenseState:
 
 def build_graph():
     graph = StateGraph(ExpenseState)
-    graph.add_node("classifier", classifier_node)
-    graph.add_node("policy_retriever", policy_retriever_node)
-    graph.add_node("evidence_extractor", evidence_extractor_node)
-    graph.add_node("policy_reviewer", policy_reviewer_node)
-    graph.add_node("risk_router", risk_router_node)
+    graph.add_node("classifier", classifier_node) # 카테고리 분류
+    graph.add_node("policy_retriever", policy_retriever_node) # 분류된 카테고리를 필터로 사용해 DB에서 검색시작
+    graph.add_node("evidence_extractor", evidence_extractor_node) 
+    graph.add_node("policy_reviewer", policy_reviewer_node) # 리트리버된 문서와 질문을 토대로 형식에 맞는 결과 도출
+    graph.add_node("risk_router", risk_router_node) # 갈림길
     graph.add_node("clarify", clarify_node)
     graph.add_node("manager_review", manager_review_node)
     graph.add_node("next_step", next_step_node)
@@ -255,7 +256,7 @@ def build_graph():
     graph.add_edge("policy_reviewer", "risk_router")
     graph.add_conditional_edges(
         "risk_router",
-        route_after_review,
+        route_after_review, # literal 검증
         {
             "clarify": "clarify",
             "manager_review": "manager_review",
@@ -317,7 +318,7 @@ def create_app() -> FastAPI:
     @app.post("/review")
     def review(payload: ExpenseRequest) -> dict:
         try:
-            return run_expense_review(payload)
+            return run_expense_review(payload) # graph 노드들을 모두 거쳐나온 결과
         except LiveRagError as error:
             raise HTTPException(
                 status_code=503,
