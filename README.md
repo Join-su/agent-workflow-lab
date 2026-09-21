@@ -173,11 +173,17 @@ Streamlit은 실행 후 표시되는 로컬 주소(기본 `http://localhost:8501
 
 ## Notebook 순서
 
-1. `01_fastapi.ipynb`
-2. `02_langchain_rag.ipynb`
-3. `03_langgraph_workflow.ipynb`
-4. `04_agent_evaluation.ipynb`
-5. `05_deployment_testing.ipynb`
+Week 1은 pipeline을 앞에서 뒤로 분해하고, Week 2·3은 이전 주차에 없는 기법만 다룹니다.
+
+| Week 1 | Week 2 | Week 3 |
+|---|---|---|
+| `01_request_response_models.ipynb` | `01_structured_ticket_classification.ipynb` | `01_multi_agent_state_ownership.ipynb` |
+| `02_documents_and_splitting.ipynb` | `02_metadata_filtered_retrieval.ipynb` | `02_bounded_revision_loop.ipynb` |
+| `03_embeddings_pgvector_retrieval.ipynb` | `03_conditional_resolution_routing.ipynb` | `03_command_safety_human_approval.ipynb` |
+| `04_linear_stategraph.ipynb` | `04_ticket_workflow_evaluation.ipynb` | `04_incident_workflow_failure_tests.ipynb` |
+| `05_grounded_api_testing.ipynb` | | |
+
+각 주차의 `app.py`는 그 주차 Notebook에서 실습한 기법을 실제로 사용합니다. 이 연결은 `tests/test_curriculum_contract.py`가 검사합니다.
 
 ## 구현 경계
 
