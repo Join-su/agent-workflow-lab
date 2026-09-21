@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -14,6 +15,18 @@ from shared.live_rag import WEEK_COLLECTIONS, LiveRagError, ingest_documents, is
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 KNOWLEDGE_ROOT = REPOSITORY_ROOT / "knowledge"
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+CATEGORY_PATTERN = re.compile(r"^카테고리:\s*([A-Za-z_]+)\s*$", re.MULTILINE)
+DEFAULT_CATEGORY = "other"
+
+
+def document_category(markdown: str) -> str:
+    """Read the reviewable category header a retrieval filter can match on.
+
+    A document without the header stays in the catch-all category instead of
+    silently joining whichever category is being searched.
+    """
+    match = CATEGORY_PATTERN.search(markdown)
+    return match.group(1) if match else DEFAULT_CATEGORY
 
 
 def markdown_documents(week: str) -> list[Document]:
@@ -25,12 +38,15 @@ def markdown_documents(week: str) -> list[Document]:
 
     documents: list[Document] = []
     for source_file in source_files:
+        markdown = source_file.read_text(encoding="utf-8")
         source = Document(
-            page_content=source_file.read_text(encoding="utf-8"),
+            page_content=markdown,
             metadata={
                 "document_id": source_file.stem,
                 "source": source_file.relative_to(KNOWLEDGE_ROOT).as_posix(),
                 "week": week,
+                # Week 2 filters retrieval by this field; other weeks carry it unused.
+                "category": document_category(markdown),
             },
         )
         for index, chunk in enumerate(SPLITTER.split_documents([source]), start=1):

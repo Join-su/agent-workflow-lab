@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 
 from shared.live_rag import LiveRagConfigurationError, LiveRagSettings, is_live_mode
 from week1.app import create_app as create_week1_app, run_query
-from week2.app import ExpenseRequest, run_expense_review
+from week2.app import ExpenseClassification, ExpenseRequest, run_expense_review
 from week3.app import ChangeRequest, run_change_review
 
 
@@ -75,6 +75,14 @@ class LiveRagSettingsTests(unittest.TestCase):
             patch.dict(os.environ, {"APP_MODE": "live"}, clear=True),
             patch("week2.app.retrieve_documents_with_trace", return_value=([], [])),
             patch("week3.app.retrieve_documents_with_trace", return_value=([], [])),
+            # Live Week 2 classifies before retrieving; the judgement is stubbed so the
+            # assertion stays about the empty-evidence exit, not about the model.
+            patch(
+                "week2.app.generate_structured",
+                return_value=ExpenseClassification(
+                    category="other", priority="normal", reason="stub"
+                ),
+            ),
         ):
             week2 = run_expense_review(
                 ExpenseRequest(amount=10000, receipt_attached=True, purpose="고객 미팅")

@@ -127,18 +127,25 @@ def _vector_store(collection_name: str):
         raise LiveRagError("Live RAG용 PostgreSQL/pgvector에 연결할 수 없습니다.") from error
 
 
-def retrieve_documents(collection_name: str, query: str) -> list[Document]:
+def retrieve_documents(
+    collection_name: str, query: str, *, metadata_filter: dict[str, object] | None = None
+) -> list[Document]:
     """Return only sufficiently relevant live documents for a query.
 
     An empty result is intentional: callers must end safely instead of asking an
     LLM to answer without evidence.
     """
-    documents, _ = retrieve_documents_with_trace(collection_name, query)
+    documents, _ = retrieve_documents_with_trace(
+        collection_name, query, metadata_filter=metadata_filter
+    )
     return documents
 
 
 def retrieve_documents_with_trace(
-    collection_name: str, query: str
+    collection_name: str,
+    query: str,
+    *,
+    metadata_filter: dict[str, object] | None = None,
 ) -> tuple[list[Document], list[dict[str, str | float | bool]]]:
     """Search pgvector and return safe retrieval evidence for the API response.
 
@@ -147,9 +154,12 @@ def retrieve_documents_with_trace(
     """
     settings = LiveRagSettings.from_environment()
     try:
+        # A metadata filter narrows the candidate set before similarity ranking, so a
+        # classified request never cites another category's policy.
         results = _vector_store(collection_name).similarity_search_with_relevance_scores(
             query,
             k=settings.retrieval_k,
+            **({"filter": metadata_filter} if metadata_filter else {}),
         )
     except LiveRagError:
         raise
@@ -283,6 +293,30 @@ def ingest_documents(
     except Exception as error:
         raise LiveRagError("문서를 임베딩하여 pgvector에 저장할 수 없습니다.") from error
     return len(materialized)
+
+
+def generate_structured(schema: type, task: str, text: str) -> object:
+    """Force a model judgement into a validated schema instead of free prose.
+
+    The caller receives a parsed model instance or a ``LiveRagError``; an
+    unparseable answer is never silently replaced with a default category.
+    """
+    settings = LiveRagSettings.from_environment()
+    ChatOpenAI, _, _, _ = _imports()
+    prompt = (
+        "You classify Korean enterprise requests. Answer only with the requested fields. "
+        "Do not invent policy or approval.\n\n"
+        f"Task: {task}\nRequest: {text}"
+    )
+    try:
+        model = ChatOpenAI(
+            api_key=settings.api_key,
+            model=settings.chat_model,
+            temperature=0,
+        )
+        return model.with_structured_output(schema).invoke(prompt)
+    except Exception as error:
+        raise LiveRagError("OpenAI 구조화 분류에 실패했습니다.") from error
 
 
 def generate_grounded_text(

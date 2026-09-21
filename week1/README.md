@@ -5,7 +5,7 @@
 구성원이 합성 휴가 규정을 질문하면 관련 chunk를 검색하고, 근거가 있을 때만 답변·citation을 반환합니다. 근거가 없으면 `insufficient_evidence`로 종료하며 휴가를 신청하거나 승인하지 않습니다.
 
 ```text
-question → retrieve → answer → grounding_guard → answered | insufficient_evidence
+question → retriever → answer → evidence_guard → answered | insufficient_evidence
 ```
 
 ## 이번 주에 처음 배우는 것
@@ -23,12 +23,12 @@ structured output 분류, metadata category filter, conditional edge, 멀티에�
 
 ## 핵심 코드
 
-- `POLICY_SOURCE_DOCUMENTS`: 분할 전 합성 규정
-- `split_policy_documents()`: 검색 chunk와 `chunk_id` 생성
-- `PolicyServices`: fixture/live 구현이 공유하는 의존성 경계
+- `SOURCE_DOCUMENT`, `SPLITTER`, `POLICY_CHUNKS`: 분할 전 합성 규정과 검색 chunk
+- `retrieve_node`: fixture는 토큰 매칭, live는 `retrieve_documents_with_trace`
+- `evidence_guard_node`: 근거가 없으면 `insufficient_evidence`로 닫는 gate
 - `QueryState`: graph가 전달하는 상태
-- `build_workflow()`: 선형 graph compile
-- `run_policy_query()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않음
+- `build_graph()`: 선형 graph compile (조건부 edge 없음)
+- `run_query()`: API·자동 테스트의 canonical 진입점. Notebook에서는 호출하지 않음
 
 ## Notebook 순서
 
@@ -43,7 +43,7 @@ structured output 분류, metadata category filter, conditional edge, 멀티에�
 ## 실행·완료 기준
 
 ```bash
-.venv/bin/python -m unittest week1.tests.test_policy_qa -v
+.venv/bin/python -m unittest week1.tests.test_api -v
 APP_MODE=fixture .venv/bin/uvicorn week1.app:app --port 8011
 curl -s -X POST http://127.0.0.1:8011/query \
   -H 'content-type: application/json' \

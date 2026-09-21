@@ -1,6 +1,7 @@
 import ast
 import io
 import json
+import re
 import tokenize
 import unittest
 from pathlib import Path
@@ -43,6 +44,29 @@ REQUIRED_CODE_TERMS = {
     "week3/notebooks/02_bounded_revision_loop.ipynb": {"StateGraph(", "revision_count", "max_revisions", ".add_conditional_edges(", "fail_closed"},
     "week3/notebooks/03_command_safety_human_approval.ipynb": {"class CommandProposal", "proposal_is_safe", "approval_packet", "executed_commands"},
     "week3/notebooks/04_incident_workflow_failure_tests.ipynb": {"failure_cases", "practice_validate_severity", "blocked_manual_review", "executed_commands", "assert"},
+}
+
+# Each weekly app must still use what that week's notebooks taught. The notebook
+# path is carried so a failure names the lesson that lost its implementation.
+APP_TECHNIQUE_COVERAGE = {
+    "week1/app.py": {
+        "Pydantic 입력 경계": ("week1/notebooks/01_request_response_models.ipynb", {"BaseModel", "Field("}),
+        "Document와 splitter": ("week1/notebooks/02_documents_and_splitting.ipynb", {"Document(", "RecursiveCharacterTextSplitter", ".split_documents("}),
+        "선형 StateGraph": ("week1/notebooks/04_linear_stategraph.ipynb", {"StateGraph(", ".add_node(", ".add_edge(", ".compile("}),
+        "evidence gate": ("week1/notebooks/05_grounded_api_testing.ipynb", {"insufficient_evidence", "FastAPI("}),
+    },
+    "week2/app.py": {
+        "structured output": ("week2/notebooks/01_structured_ticket_classification.ipynb", {"Literal[", "model_validate("}),
+        "metadata filter": ("week2/notebooks/02_metadata_filtered_retrieval.ipynb", {"metadata_filter", "category"}),
+        "조건부 routing": ("week2/notebooks/03_conditional_resolution_routing.ipynb", {".add_conditional_edges(", "route_after_review"}),
+        "근거 없으면 생성하지 않음": ("week2/notebooks/04_ticket_workflow_evaluation.ipynb", {"insufficient_evidence"}),
+    },
+    "week3/app.py": {
+        "역할별 state 소유권": ("week3/notebooks/01_multi_agent_state_ownership.ipynb", {"agents_run", "operator.add"}),
+        "bounded revision loop": ("week3/notebooks/02_bounded_revision_loop.ipynb", {"revision_count", "MAX_REVISIONS", ".add_conditional_edges("}),
+        "command safety와 사람 승인": ("week3/notebooks/03_command_safety_human_approval.ipynb", {"CommandProposal", "proposal_is_safe", "approval_packet", "observation_plan"}),
+        "비실행 불변조건": ("week3/notebooks/04_incident_workflow_failure_tests.ipynb", {"executed_commands", "blocked_manual_review"}),
+    },
 }
 
 FORBIDDEN_CODE_TERMS = {
@@ -143,6 +167,33 @@ class CurriculumContractTests(unittest.TestCase):
         self.assertIn(".add_conditional_edges(", week3)
         self.assertIn("revision_count", week3)
         self.assertIn("max_revisions", week3)
+
+    def test_notebook_code_uses_python_literals_not_json_literals(self):
+        """Carried over from the retired tests/test_notebooks.py."""
+        offenders = []
+        for relative_path in REQUIRED_CODE_TERMS:
+            source = self.notebook_parts(relative_path)[1]
+            if '"receipt_attached": false' in source or '"receipt_attached": true' in source:
+                offenders.append(relative_path)
+        self.assertEqual(offenders, [])
+
+    def test_every_notebook_has_a_distinct_scenario(self):
+        """A reused library must arrive with a scenario only its new technique solves."""
+        scenarios: dict[str, str] = {}
+        for relative_path in REQUIRED_CODE_TERMS:
+            prose = self.notebook_parts(relative_path)[0]
+            body = re.search(r"## 시나리오\n(.*?)(?=\n##)", prose, re.S)
+            self.assertIsNotNone(body, relative_path)
+            scenario = " ".join(body.group(1).split())
+            self.assertTrue(scenario, relative_path)
+            scenarios[relative_path] = scenario
+
+        duplicates = {
+            scenario: sorted(path for path, text in scenarios.items() if text == scenario)
+            for scenario in set(scenarios.values())
+            if list(scenarios.values()).count(scenario) > 1
+        }
+        self.assertEqual(duplicates, {})
 
     def test_notebook_imports_and_calls_are_ast_checked(self):
         forbidden_modules = {"week1.app", "week2.app", "week3.app"}
@@ -265,11 +316,29 @@ class CurriculumContractTests(unittest.TestCase):
         self.assertIsNone(sev3_guard["approval_packet"])
         self.assertEqual(sev3_guard["executed_commands"], [])
 
+    def test_each_app_uses_the_techniques_its_week_practised(self):
+        """A notebook technique that never reaches app.py is a broken curriculum."""
+        for application, techniques in APP_TECHNIQUE_COVERAGE.items():
+            source = (ROOT / application).read_text(encoding="utf-8")
+            for technique, (notebook, terms) in techniques.items():
+                with self.subTest(app=application, technique=technique):
+                    missing = sorted(term for term in terms if term not in source)
+                    self.assertEqual(
+                        missing,
+                        [],
+                        f"{application} no longer uses '{technique}' from {notebook}",
+                    )
+
+    def test_week1_app_stays_linear_so_week2_can_introduce_branching(self):
+        source = (ROOT / "week1/app.py").read_text(encoding="utf-8")
+        self.assertIn(".add_edge(", source)
+        self.assertNotIn(".add_conditional_edges(", source)
+
     def test_local_runtime_defaults_remain_fixture_and_loopback_only(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 
-        self.assertIn('APP_MODE=fixture PYTHONPATH="$PWD"', readme)
+        self.assertIn("APP_MODE=fixture .venv/bin/uvicorn week1.app:app", readme)
         self.assertIn('127.0.0.1:${POSTGRES_PORT:-6024}:5432', compose)
 
 
