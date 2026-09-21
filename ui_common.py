@@ -108,23 +108,44 @@ def render_rag_observability(week: str) -> None:
                     st.code(chunk["content_preview"], language="markdown")
 
 
-SUCCESS_STATUSES = {"answered", "approved_for_next_step", "done"}
-REVIEW_STATUSES = {"human_review", "blocked_manual_review"}
+SUCCESS_STATUSES = {"answered", "approved_for_next_step", "done", "plan_ready"}
+REVIEW_STATUSES = {
+    "human_review",
+    "human_approval_required",
+    "blocked_manual_review",
+    "manager_review",
+    "clarify",
+}
 STATUS_LABELS = {
     "answered": "답변 완료",
     "approved_for_next_step": "다음 단계 진행 가능",
     "done": "검토 완료",
+    "plan_ready": "관찰 계획 준비 완료",
+    "clarify": "보완 요청",
+    "manager_review": "관리자 검토 필요",
     "insufficient_evidence": "근거 부족",
     "human_review": "사람 검토 필요",
+    "human_approval_required": "사람 승인 필요",
     "blocked_manual_review": "수동 검토로 중단",
     "unknown": "알 수 없음",
 }
+CATEGORY_LABELS = {
+    "transport": "교통비",
+    "lodging": "숙박비",
+    "meal": "식대",
+    "other": "기타",
+}
+PRIORITY_LABELS = {"normal": "일반", "urgent": "긴급"}
 USE_CASE_LABELS = {
     "hr_leave_policy_self_service": "HR 휴가 규정 질의응답",
     "expense_claim_precheck": "출장비 청구 사전 검토",
     "it_change_risk_review": "IT 변경 위험 검토",
 }
 NODE_LABELS = {
+    "classifier": "요청 분류",
+    "manager_review": "관리자 검토",
+    "risk_guard": "위험 차단 검사",
+    "blocked": "수동 검토로 중단",
     "retriever": "문서 검색",
     "answer": "답변 생성",
     "evidence_guard": "근거 검증",
@@ -132,14 +153,22 @@ NODE_LABELS = {
     "evidence_extractor": "필수 정보 확인",
     "policy_reviewer": "규정 검토",
     "risk_router": "경로 결정",
+    "clarify": "보완 요청",
+    "next_step": "다음 단계로",
     "planner": "계획 수립",
     "evidence_reviewer": "근거 검토",
     "risk_reviewer": "위험 검토",
     "synthesizer": "결과 종합",
     "insufficient_evidence": "근거 부족 종료",
 }
-FOLLOW_UP_LABELS = {"receipt_required": "영수증 첨부 필요"}
-REASON_LABELS = {"policy_bypass_requested": "규정 우회 요청 감지"}
+FOLLOW_UP_LABELS = {
+    "receipt_required": "영수증 첨부 필요",
+    "manager_approval_required": "관리자 승인 필요",
+}
+REASON_LABELS = {
+    "policy_bypass_requested": "규정 우회 요청 감지",
+    "unsafe_command_proposed": "허용되지 않은 명령 제안",
+}
 
 
 def render_result(result: dict[str, Any]) -> None:
@@ -153,16 +182,16 @@ def render_result(result: dict[str, Any]) -> None:
         }
         for citation in result.get("citations", [])
     ]
-    human_review_packet = result.get("human_review_packet")
+    packet = result.get("approval_packet") or result.get("observation_plan")
     review_details = None
-    if human_review_packet:
+    if packet:
         review_details = {
-            "요청 내용": human_review_packet.get("request"),
+            "요청 내용": packet.get("request"),
             "근거": citations,
-            "검토 사유": REASON_LABELS.get(
-                human_review_packet.get("reason"), human_review_packet.get("reason")
-            ),
-            "결정이 필요한 사항": human_review_packet.get("decision_needed"),
+            "검토 사유": REASON_LABELS.get(packet.get("reason"), packet.get("reason")),
+            "사람에게 제시한 명령": packet.get("proposed_commands"),
+            "차단된 위험 제안": packet.get("rejected_unsafe_proposals"),
+            "결정이 필요한 사항": packet.get("decision_needed"),
         }
 
     with st.container(border=True):
@@ -188,6 +217,16 @@ def render_result(result: dict[str, Any]) -> None:
             )
             st.caption(f"실행 모드: {result.get('mode', '알 수 없음')}")
             st.caption("워크플로 엔진: LangGraph")
+            if category := result.get("category"):
+                st.caption(
+                    f"분류: {CATEGORY_LABELS.get(category, category)} · "
+                    f"우선순위 {PRIORITY_LABELS.get(result.get('priority'), result.get('priority'))}"
+                )
+            if severity := result.get("severity"):
+                st.caption(
+                    f"변경 위험 등급: {severity} · 재검토 "
+                    f"{result.get('revision_count', 0)}/{result.get('max_revisions', 0)}회"
+                )
         with trace:
             st.markdown("**실행 단계**")
             st.code(
@@ -209,6 +248,27 @@ def render_result(result: dict[str, Any]) -> None:
         if draft := result.get("draft"):
             st.markdown("**검토 초안**")
             st.info(draft, icon=":material/edit_note:")
+
+        if (commands := (packet or {}).get("proposed_commands")) is not None and packet:
+            st.markdown("**사람에게 제시한 관찰 명령**")
+            if commands:
+                st.dataframe(
+                    [
+                        {
+                            "명령": item["command"],
+                            "목적": item["purpose"],
+                            "dry_run": item["dry_run"],
+                        }
+                        for item in commands
+                    ],
+                    hide_index=True,
+                    key="proposed_commands_table",
+                )
+            else:
+                st.caption("허용 목록을 통과한 명령이 없어 사람에게 제시한 명령이 없습니다.")
+            st.caption(
+                f"실행된 명령: {result.get('executed_commands', [])} — 이 워크플로는 명령을 실행하지 않습니다."
+            )
 
         if citations:
             st.markdown("**근거 문서**")
@@ -243,9 +303,13 @@ def render_result(result: dict[str, Any]) -> None:
                 result.get("required_follow_up"), result.get("required_follow_up")
             ),
             "수정 횟수": result.get("revision_count"),
+            "분류": result.get("category"),
+            "우선순위": result.get("priority"),
+            "분류 근거": result.get("classification_reason"),
             "근거 문서": citations,
             "Retriever 실행 기록": retrieval_trace,
             "사람 검토 내용": review_details,
+            "실행된 명령": result.get("executed_commands"),
         }
         with st.expander("상세 결과 보기"):
             st.json({key: value for key, value in details.items() if value is not None}, expanded=2)

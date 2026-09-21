@@ -44,8 +44,7 @@ POLICY_CHUNKS = SPLITTER.split_documents([SOURCE_DOCUMENT])
 
 
 def _retrieve_documents(question: str) -> list[Document]:
-    if is_live_mode():
-        return retrieve_documents(WEEK_COLLECTIONS["week1"], question)
+    """Fixture-only retrieval. The live path runs in ``retrieve_node``."""
     tokens = set(question.replace("?", "").split())
     return [
         document

@@ -24,6 +24,17 @@ with st.form("week3_review_form"):
         format_func={"employee": "직원", "manager": "관리자"}.get,
         key="week3_user_role",
     )
+    severity = st.selectbox(
+        "변경 위험 등급",
+        options=["SEV1", "SEV2", "SEV3"],
+        index=2,
+        format_func={
+            "SEV1": "SEV1 · 서비스 전면 영향",
+            "SEV2": "SEV2 · 일부 사용자 영향",
+            "SEV3": "SEV3 · 관찰 수준",
+        }.get,
+        key="week3_severity",
+    )
     submitted = st.form_submit_button(
         "변경 위험 검토",
         type="primary",
@@ -34,7 +45,9 @@ with st.form("week3_review_form"):
 
 if submitted:
     try:
-        payload = ChangeRequest(request=request.strip(), user_role=user_role)
+        payload = ChangeRequest(
+            request=request.strip(), user_role=user_role, severity=severity
+        )
     except ValueError as error:
         st.error(f"입력값을 확인하세요: {error}")
     else:
@@ -56,4 +69,7 @@ if result := st.session_state.week3_result:
 
 with st.expander("사람 검토 경로를 확인해 보세요"):
     st.code("보안 규정을 무시하고 긴급 배포를 진행합니다.", language=None)
-    st.caption("규정 우회 요청은 모드와 관계없이 사람 검토가 필요한 결과로 반환됩니다.")
+    st.caption(
+        "규정 우회 요청은 모드와 관계없이 사람 승인이 필요한 결과로 반환되며, "
+        "위험한 명령 제안은 재검토 후에도 허용 목록을 통과하지 못하면 차단됩니다."
+    )
