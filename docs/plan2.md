@@ -4,7 +4,8 @@
 - Project 주제: 승인됨
 - 구현·Remote·Commit·Push·Live API 실행: 미승인
 - 대상 경로: `~/Desktop/project/hanhaw/agent-workflow-lab-v2` (승인 완료. 초안의 `/opt/data`는 해당 머신에 없어 변경)
-- 개정: 2026-09-21. Notebook 16 → 29개, `notebook_type` 축 도입, 주차 디렉터리 도메인명, 학습자 전제 명시
+- 개정 2: 2026-09-21. 중간 점검 반영 — `shared/`는 실제 공유되는 것만, 검증 명령을 pytest로 일원화, `deferred_conditions` 도입
+- 개정 1: 2026-09-21. Notebook 16 → 29개, `notebook_type` 축 도입, 주차 디렉터리 도메인명, 학습자 전제 명시
 - 실행 명세: `plan2-phase0-execution.md` (Phase 0 상세), 설계 근거: `plan2-vs-existing.md`
 - 목표: 기본 RAG 이후 한화내일아카데미 커리큘럼을 3개의 독립 현업 Project와 별도 기술 학습 Notebook으로 구현
 
@@ -110,6 +111,10 @@ Notebook별 아래 값을 고정한다.
 - Assertion
 - 금지 Import·Call
 - 실제 App과의 개념적 연결
+
+### 미충족 조건을 숨기지 않는 규칙
+
+자격 조건을 아직 못 채웠다면 조건을 느슨하게 적는 대신 `deferred_conditions`에 Project·Capability·조건·Phase·사유를 적는다. 계약 Test가 매 실행마다 이 목록을 출력하고, 조건이 실제로 충족되면 "유예를 지우라"며 실패한다. 유예가 구현보다 오래 살아남지 못한다.
 
 ### 변경 규칙
 
@@ -564,11 +569,7 @@ agent-workflow-lab-v2/
 ├── .env.example
 ├── .gitignore
 ├── shared/
-│   ├── contracts/
-│   ├── evaluation/
-│   ├── retrieval/
-│   ├── mcp/
-│   └── testing/
+│   └── mcp/                       # 주차 간 실제로 공유되는 것만 둔다
 ├── w1_retrieval_quality/          # Notebook 10개
 │   ├── app.py
 │   ├── domain.py
@@ -594,14 +595,18 @@ agent-workflow-lab-v2/
 │   └── tests/
 ├── app_pages/
 ├── streamlit_app.py
-├── tests/
+├── tests/                         # 목록은 manifest의 course_tests가 정본
 │   ├── test_curriculum_manifest.py
 │   ├── test_notebook_contracts.py
 │   ├── test_cumulative_structure.py
+│   ├── test_notebook_inventory.py
+│   ├── test_notebook_quality.py
 │   ├── test_capability_qualification.py
 │   ├── test_docs_runtime_alignment.py
 │   ├── test_security_invariants.py
-│   └── test_live_contracts.py
+│   ├── test_shared_layer.py
+│   ├── test_streamlit_smoke.py
+│   └── test_live_contracts.py     # Phase 4
 ├── docs/
 │   ├── tdd-log.md
 │   ├── live-smoke.md
@@ -621,11 +626,11 @@ agent-workflow-lab-v2/
 ```bash
 uv sync --frozen
 uv run pytest -q
-uv run python -m compileall shared w1_retrieval_quality w2_procurement_agent w3_capa_control_tower app_pages streamlit_app.py
-uv run python scripts/validate_notebooks.py
-uv run python scripts/execute_notebooks.py
+uv run python -m compileall shared w1_retrieval_quality w2_procurement_agent w3_capa_control_tower app_pages streamlit_app.py scripts
 git diff --check
 ```
+
+Notebook 구조 검사와 Top-to-bottom 실행은 별도 script가 아니라 `tests/test_notebook_quality.py`가 수행한다. `uv run pytest -q` 한 번에 포함되어 CI에서 자동으로 돌고, 정본(`notebook_contracts.yaml`)과 같은 fixture를 쓴다. 초안의 `scripts/validate_notebooks.py`·`execute_notebooks.py`는 만들지 않았다.
 
 Container Artifact가 준비된 뒤에는 다음을 별도 검증한다.
 
