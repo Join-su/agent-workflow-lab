@@ -121,6 +121,9 @@ course:
     assumed_concepts: [기본 RAG, citation, evidence gate, structured output,
                        metadata filter, conditional routing, bounded loop]
 python: "3.14"
+audience:
+  assumed: [Python 기본 문법, 함수·클래스·dict·list, 터미널 명령 실행]
+  not_assumed: [RAG, LangChain, LangGraph, FastAPI, Streamlit]
 naming_deviation:
   plan_section: "plan2 §10"
   changed: "week1/week2/week3 → w1_retrieval_quality/w2_procurement_agent/w3_capa_control_tower"
@@ -175,12 +178,17 @@ projects:
                    Hybrid Retrieval, RRF, Parent Document Retriever,
                    Self-RAG Quality Gate, Bounded Retry, Abstain]
     reused_not_reexplained: [Document, splitter, citation, evidence gate]
-    notebooks:
-      - 01_retrieval_evaluation_baseline.ipynb
-      - 02_query_rewriting_multi_query.ipynb
-      - 03_hybrid_retrieval_fusion.ipynb
-      - 04_parent_document_retrieval.ipynb
-      - 05_self_rag_quality_gate.ipynb
+    notebooks:                       # 순서·notebook_type은 notebook_contracts.yaml과 대조된다
+      - {file: 01_evaluation_set_and_gold_evidence.ipynb, type: agent_technique}
+      - {file: 02_recall_at_k.ipynb,                      type: agent_technique}
+      - {file: 03_mrr.ipynb,                              type: agent_technique}
+      - {file: 04_query_rewriting.ipynb,                  type: agent_technique}
+      - {file: 05_multi_query_and_dedupe.ipynb,           type: agent_technique}
+      - {file: 06_bm25_keyword_retrieval.ipynb,           type: agent_technique}
+      - {file: 07_reciprocal_rank_fusion.ipynb,           type: agent_technique}
+      - {file: 08_parent_document_retrieval.ipynb,        type: agent_technique}
+      - {file: 09_relevance_and_grounding_grade.ipynb,    type: agent_technique}
+      - {file: 10_end_to_end_retrieval_evaluation.ipynb,  type: agent_technique, integration: true}
     completion:
       fixture:
         - 동일 평가셋으로 Baseline과 Advanced 결과를 비교한다
@@ -204,6 +212,7 @@ projects:
 | `fixture_prefixes` | `practice_`, `mini_`, `sample_` |
 | `require_assertion` | true |
 | `require_success_and_failure_fixture` | true |
+| `max_new_concepts_per_notebook` | 1 |
 
 ### `notebooks[]` 필드
 
@@ -230,11 +239,14 @@ common:
   require_assertion: true
   require_success_and_failure_fixture: true
   forbidden_calls: [create_app, run_diagnose, run_evaluate, build_workflow, build_graph]
+  audience_ref: curriculum_manifest.yaml#audience   # 학습 목표가 not_assumed 범위를 벗어나면 실패
 
 notebooks:
-  - file: w1_retrieval_quality/notebooks/03_hybrid_retrieval_fusion.ipynb
+  - file: w1_retrieval_quality/notebooks/07_reciprocal_rank_fusion.ipynb
     project: w1_retrieval_quality
-    order: 3
+    order: 7
+    notebook_type: agent_technique
+    new_concepts: [reciprocal_rank_fusion]        # 정확히 1개여야 한다
     objective: BM25와 Dense 검색 결과를 RRF로 합치고 단일 전략 대비 순위 변화를 관찰한다
     primitives: ["BM25", "cosine_similarity", "reciprocal_rank_fusion"]
     fixtures:
@@ -244,7 +256,7 @@ notebooks:
     assertions:
       - RRF 결과가 단일 전략보다 Gold 문서를 상위에 올린다
       - 두 전략 모두 비면 융합 결과도 빈 목록이다
-    app_link: Week 1 App의 Hybrid Retrieval·Fusion 단계
+    app_link: w1_retrieval_quality App의 Hybrid Retrieval·Fusion 단계
 ```
 
 ### Notebook 분류 축 — `notebook_type`
@@ -285,17 +297,37 @@ W3 풀 = 전체 − (W1 ∪ W2)에서 실습한 것
 
 중복 도입 금지는 **과정 경계를 넘어서도 적용된다.** `reused_not_reexplained`에 선행 과정의 개념을 적고, 계약 테스트가 그 목록의 기법을 이 과정의 `new_concepts`에서 금지한다.
 
-### 점검으로 반영한 변경 — plan2 §4~6 대비
+### 점검으로 반영한 변경 — plan2 초안 §4~6 대비
 
-| # | 발견한 갭 | 조치 |
+초안의 Notebook 16개를 아래 두 기준으로 점검해 29개로 조정했다. 파일명은 모두 최종 Inventory 기준이다.
+
+#### (가) 누락 — 계획이 약속했으나 담당 Notebook이 없던 것
+
+| # | 갭 | 조치 |
 |---|---|---|
-| 1 | W1에 Baseline↔Advanced를 같은 평가셋으로 비교하는 통합 자리가 없음 | `06_end_to_end_retrieval_evaluation.ipynb` **신규** |
-| 2 | "Bounded Retry와 Abstain"이 어느 노트북에도 배치되지 않음 | 위 신규 노트북에 귀속 |
-| 3 | W2 `04_chaining_routing_parallel`이 3개 기법을 한 파일에 담고, 그중 routing은 선행 과정 재사용 대상 | `04_parallel_fanout_reduce.ipynb`로 **범위 축소**. chaining은 `02`의 연속 호출에 흡수, routing은 `reused_not_reexplained`로 이동 |
-| 4 | Step Budget 귀속 불명 | `02_action_observation_dispatcher`에 귀속 |
-| 5 | GitHub PR·CI, Container·Health·Rollback이 노트북 없이 "주요 기술"에 등재 | 노트북 약속에서 제거하고 `deliverables`(artifact)로 재분류 |
-| 6 | Tool Idempotency 미배치 | `03_interrupt_checkpoint_resume`에 귀속 |
-| 7 | W3에 전역 실패 불변조건을 고정할 자리가 없음 | `04_mcp_permissions_audit`를 **통합·불변조건 역할로 규정** (권한·감사 + `executed_actions=[]` 실패 행렬) |
+| 1 | W1에 Baseline↔Advanced를 같은 평가셋으로 비교하는 통합 자리가 없음 | `10_end_to_end_retrieval_evaluation.ipynb` **신규** |
+| 2 | "Bounded Retry와 Abstain"이 어느 Notebook에도 배치되지 않음 | 위 신규 Notebook에 귀속 |
+| 3 | Step Budget 귀속 불명 | W2 `05_step_budget.ipynb` **독립 분리** |
+| 4 | Tool Idempotency 미배치 | W3 `06_resume_and_idempotency.ipynb`에 귀속 |
+| 5 | W3에 전역 실패 불변조건을 고정할 자리가 없음 | `08_global_safety_invariants.ipynb` **신규 통합 Notebook** |
+| 6 | GitHub PR·CI, Container·Health·Rollback이 Notebook 없이 "주요 기술"에 등재 | Notebook 약속에서 제거하고 `deliverables`(artifact)로 재분류 |
+| 7 | W2 `04_chaining_routing_parallel`의 routing이 선행 과정 재실습 | routing을 `reused_not_reexplained`로 이동, chaining은 `04_action_observation_loop`에 흡수, 남은 fan-out만 `08_parallel_fanout_reduce.ipynb` |
+
+#### (나) 과밀 — 한 Notebook에 도메인 개념이 2개 이상이던 것
+
+| 초안 Notebook | 개념 수 | 분할 결과 |
+|---|---:|---|
+| `01_retrieval_evaluation_baseline` | 3 | `01_evaluation_set_and_gold_evidence` / `02_recall_at_k` / `03_mrr` |
+| `02_query_rewriting_multi_query` | 2 | `04_query_rewriting` / `05_multi_query_and_dedupe` |
+| `03_hybrid_retrieval_fusion` | 2 | `06_bm25_keyword_retrieval` / `07_reciprocal_rank_fusion` |
+| `05_self_rag_quality_gate` | 2 | `09_relevance_and_grounding_grade` (관련도·근거 판정을 나란히 비교해야 차이가 드러나므로 유지) |
+| `01_function_calling_tool_schema` | 2 | `01_tool_schema_declaration` / `02_tool_argument_validation` |
+| `02_action_observation_dispatcher` | 3 | `03_deterministic_dispatcher` / `04_action_observation_loop` / `05_step_budget` |
+| `03_local_mcp_resources_tools` | 2 | `06_mcp_server_and_client` / `07_mcp_resource_tool_discovery` |
+| `01_agent_contracts_handoffs` | 2 | `01_agent_io_contract` / `02_state_ownership_and_handoff` |
+| `02_supervisor_parallel_reducer` | 2 | `03_supervisor_worker` / `04_parallel_reducer_and_partial_failure` |
+| `03_interrupt_checkpoint_resume` | 2 | `05_interrupt_and_checkpoint` / `06_resume_and_idempotency` |
+| `04_mcp_permissions_audit` | 2 | `07_mcp_role_allowlist_and_audit` / `08_global_safety_invariants` |
 
 ### 학습자 전제 — 무엇을 알고 무엇을 모르는가
 

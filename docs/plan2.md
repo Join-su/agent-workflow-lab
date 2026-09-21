@@ -3,7 +3,9 @@
 - 상태: 구현 전 계획
 - Project 주제: 승인됨
 - 구현·Remote·Commit·Push·Live API 실행: 미승인
-- 대상 경로 제안: `/opt/data/agent-workflow-lab-v2`
+- 대상 경로: `~/Desktop/project/hanhaw/agent-workflow-lab-v2` (승인 완료. 초안의 `/opt/data`는 해당 머신에 없어 변경)
+- 개정: 2026-09-21. Notebook 16 → 29개, `notebook_type` 축 도입, 주차 디렉터리 도메인명, 학습자 전제 명시
+- 실행 명세: `plan2-phase0-execution.md` (Phase 0 상세), 설계 근거: `plan2-vs-existing.md`
 - 목표: 기본 RAG 이후 한화내일아카데미 커리큘럼을 3개의 독립 현업 Project와 별도 기술 학습 Notebook으로 구현
 
 ---
@@ -55,6 +57,8 @@ Week 1: 측정 가능한 Advanced RAG
 | Review Packet을 실제 HITL로 표현 | Interrupt·Checkpoint·Resume 없이도 HITL 완료로 오인 | Packet 생성과 실행 중단·상태 저장·재개를 별도 Capability로 분류 | Approve·Reject·Edit 후 동일 Thread Resume Test |
 | Command 문자열 검사를 Function Calling으로 표현 | Tool Schema·Dispatcher·Observation Loop가 없는 상태를 과대평가 | Tool Binding, 인자 검증, Dispatcher, Observation 환류가 있을 때만 Function Calling으로 표기 | Unknown Tool·Invalid Args·Timeout Test |
 | 역할 이름이 다른 Node를 완전한 Multi-Agent로 표현 | Handoff·State Ownership·Failure Isolation이 없음 | Agent별 입력·출력·소유 State·Handoff·Step Budget을 명시 | State Ownership·Handoff·Termination Test |
+| 주차별 Notebook 개수를 목표로 삼을 위험 | 어떤 주차가 실제로 더 많은 신규 기법을 필요로 할 때 억지로 합쳐 밀도가 올라감 | 개수는 "이전 주차에서 실습한 것을 다시 실습하지 않는다"의 **결과**로만 관측한다 | 중복 도입 금지는 Test로 강제하고 개수는 리포트만 |
+| 학습자 전제를 적지 않아 분할 기준이 흔들림 | 한 Notebook에 개념을 몇 개 넣을지가 작성자마다 달라짐 | `audience`에 안다고 가정할 것과 모른다고 가정할 것을 고정한다 | 학습 목표가 `not_assumed` 범위를 벗어나면 실패 |
 | Project 설계와 Notebook 설계를 한 질문으로 묶음 | 승인 대상과 학습 자료 설계가 혼동됨 | Project Contract와 Notebook Contract를 별도 문서·Gate로 관리 | Project Approval과 Notebook Review 상태를 별도 기록 |
 
 ### 최우선 교훈
@@ -75,23 +79,30 @@ Week 1: 측정 가능한 Advanced RAG
 
 주차별 아래 값을 고정한다.
 
-- Project ID와 제목
+- Project ID와 제목 (ID는 주차 디렉터리명과 동일)
 - 난이도
 - 사용자·문제·결과물
 - FastAPI Endpoint
 - Request·Response Model 이름
 - 신규 학습 개념
 - 재사용하지만 재설명하지 않는 개념
-- Notebook Inventory
+- Notebook Inventory와 각 Notebook의 `notebook_type`
 - Test 파일
+- Notebook이 아닌 산출물(`deliverables`) — CI 설정, Container Artifact 등
 - 안전 불변조건
 - Fixture·Live 완료 기준
 
 ### `notebook_contracts.yaml`
 
+공통으로 아래를 고정한다.
+
+- 학습자 전제 `audience` — 안다고 가정할 것, 모른다고 가정할 것
+- 필수 Heading, 최소 Cell 수, Fixture 접두사, Assertion 필수 여부
+
 Notebook별 아래 값을 고정한다.
 
 - 파일명
+- `notebook_type` — `agent_technique` 또는 `engineering_practice`
 - 학습 목표
 - 직접 생성해야 할 Library Primitive
 - 실행해야 할 정상·실패 Fixture
@@ -157,13 +168,20 @@ Question
 - `GET /diagnostics`
 - Streamlit: 검색 전략·중간 Retrieval·평가 비교·Citation 표시
 
-### 관련 기술 학습 Notebook — 5개
+### 관련 기술 학습 Notebook — 10개 (전부 `agent_technique`)
 
-1. `01_retrieval_evaluation_baseline.ipynb`
-2. `02_query_rewriting_multi_query.ipynb`
-3. `03_hybrid_retrieval_fusion.ipynb`
-4. `04_parent_document_retrieval.ipynb`
-5. `05_self_rag_quality_gate.ipynb`
+| # | 파일 | 이 Notebook의 개념 하나 |
+|---:|---|---|
+| 1 | `01_evaluation_set_and_gold_evidence.ipynb` | 평가셋과 정답 문서를 사람이 지정한다 |
+| 2 | `02_recall_at_k.ipynb` | 상위 k개 안에 정답이 들어왔는가 |
+| 3 | `03_mrr.ipynb` | 정답이 몇 번째에 나왔는가 |
+| 4 | `04_query_rewriting.ipynb` | 질문을 바꿔 쓰면 검색 결과가 달라진다 |
+| 5 | `05_multi_query_and_dedupe.ipynb` | 여러 질문으로 검색하고 중복을 제거한다 |
+| 6 | `06_bm25_keyword_retrieval.ipynb` | 키워드 검색은 임베딩 검색과 무엇이 다른가 |
+| 7 | `07_reciprocal_rank_fusion.ipynb` | 두 검색 결과의 순위를 하나로 합친다 |
+| 8 | `08_parent_document_retrieval.ipynb` | 작은 chunk로 찾고 큰 문맥으로 답한다 |
+| 9 | `09_relevance_and_grounding_grade.ipynb` | 검색 결과와 답변을 각각 판정한다 |
+| 10 | `10_end_to_end_retrieval_evaluation.ipynb` | **통합** — Bounded Retry, Abstain, Baseline 대비 회귀 평가 |
 
 ### Week 1 완료 기준
 
@@ -218,8 +236,8 @@ Purchase Request
 - Step Budget
 - Local MCP Server·Client
 - Resource·Tool Discovery
-- Prompt Chaining
-- Conditional Routing
+- Prompt Chaining (`02`의 연속 호출로 다룸)
+- Conditional Routing (선행 과정 재사용, Notebook 없음)
 - Fan-out·Fan-in
 - Timeout·Retry·Idempotency
 - Unknown Tool Fail-closed
@@ -233,13 +251,21 @@ Purchase Request
 
 모든 Tool은 합성 데이터에 대한 Read-only 또는 In-memory Sandbox 동작만 제공한다.
 
-### 관련 기술 학습 Notebook — 5개
+### 관련 기술 학습 Notebook — 9개 (전부 `agent_technique`)
 
-1. `01_function_calling_tool_schema.ipynb`
-2. `02_action_observation_dispatcher.ipynb`
-3. `03_local_mcp_resources_tools.ipynb`
-4. `04_chaining_routing_parallel.ipynb`
-5. `05_tool_failure_safety.ipynb`
+| # | 파일 | 이 Notebook의 개념 하나 |
+|---:|---|---|
+| 1 | `01_tool_schema_declaration.ipynb` | Tool을 JSON Schema로 선언한다 |
+| 2 | `02_tool_argument_validation.ipynb` | 잘못된 인자를 실행 전에 막는다 |
+| 3 | `03_deterministic_dispatcher.ipynb` | 이름으로 Tool을 고르는 일은 모델이 아니라 코드가 한다 |
+| 4 | `04_action_observation_loop.ipynb` | Tool 결과를 다음 turn 입력으로 되돌린다 |
+| 5 | `05_step_budget.ipynb` | 몇 번 돌고 반드시 멈춘다 |
+| 6 | `06_mcp_server_and_client.ipynb` | 별도 Process의 MCP 서버에 붙는다 |
+| 7 | `07_mcp_resource_tool_discovery.ipynb` | 서버가 제공하는 Resource·Tool 목록을 읽는다 |
+| 8 | `08_parallel_fanout_reduce.ipynb` | 여러 Tool을 동시에 부르고 결과를 합친다 |
+| 9 | `09_tool_failure_matrix.ipynb` | **통합** — Unknown Tool·Invalid Args·Timeout·Retry 소진 실패 행렬 |
+
+`Conditional Routing`은 선행 과정에서 실습했으므로 Notebook을 만들지 않고 App에서만 사용한다.
 
 ### Week 2 완료 기준
 
@@ -304,17 +330,28 @@ Quality Event
 - Clean Architecture
 - TDD
 - SDD Skill Contract
-- GitHub PR·Review·CI
+
+### Notebook이 아닌 산출물 (`deliverables`)
+
+아래는 Notebook으로 실습할 성격이 아니므로 학습 자료가 아니라 저장소 산출물로 분류한다. Notebook 약속에 넣지 않는다.
+
+- GitHub PR·Review·CI 설정
 - Container·Health·Rollback Artifact
 
-### 관련 기술 학습 Notebook — 6개
+### 관련 기술 학습 Notebook — 10개 (`agent_technique` 8 + `engineering_practice` 2)
 
-1. `01_agent_contracts_handoffs.ipynb`
-2. `02_supervisor_parallel_reducer.ipynb`
-3. `03_interrupt_checkpoint_resume.ipynb`
-4. `04_mcp_permissions_audit.ipynb`
-5. `05_tdd_skill_contracts.ipynb`
-6. `06_ports_adapters_contract_testing.ipynb`
+| # | 파일 | type | 이 Notebook의 개념 하나 |
+|---:|---|---|---|
+| 1 | `01_agent_io_contract.ipynb` | agent_technique | Agent의 입력과 출력을 계약으로 고정한다 |
+| 2 | `02_state_ownership_and_handoff.ipynb` | agent_technique | 누가 어떤 State를 쓸 수 있는가 |
+| 3 | `03_supervisor_worker.ipynb` | agent_technique | Supervisor가 Worker에게 일을 나눈다 |
+| 4 | `04_parallel_reducer_and_partial_failure.ipynb` | agent_technique | 병렬 결과를 합치고, 한 명이 실패해도 버틴다 |
+| 5 | `05_interrupt_and_checkpoint.ipynb` | agent_technique | 실행을 멈추고 상태를 저장한다 |
+| 6 | `06_resume_and_idempotency.ipynb` | agent_technique | 같은 Thread에서 재개하고, 끝난 Tool을 다시 부르지 않는다 |
+| 7 | `07_mcp_role_allowlist_and_audit.ipynb` | agent_technique | 역할별 권한과 감사 기록 |
+| 8 | `08_global_safety_invariants.ipynb` | agent_technique | **통합** — 어떤 실패에서도 `executed_actions=[]` |
+| 9 | `09_tdd_skill_contracts.ipynb` | engineering_practice | RED→GREEN→REFACTOR, SDD Skill Contract |
+| 10 | `10_ports_adapters_contract_testing.ipynb` | engineering_practice | Clean Architecture, Ports/Adapters, Contract Test |
 
 ### Week 3 완료 기준
 
@@ -328,6 +365,37 @@ Quality Event
 ---
 
 ## 7. Notebook 작성 계약
+
+### 학습자 전제
+
+| | 내용 |
+|---|---|
+| 안다고 가정 | Python 기본 문법, 함수·클래스·dict·list, 터미널 명령 실행 |
+| 모른다고 가정 | RAG, LangChain, LangGraph, FastAPI 같은 백엔드, Streamlit 같은 프론트엔드 |
+
+### 분할 규칙 — 한 Notebook = 한 개념 + 한 시나리오
+
+Notebook 하나에 **도메인 개념을 2개 이상 넣지 않는다.** 2개면 Notebook을 2개로 나눈다.
+
+분할 대상은 위 "모른다고 가정"의 개념에 한정한다. **Python 문법은 분할 대상이 아니다.** `for` 문이나 `dict` 사용법을 설명하는 Cell·Notebook은 만들지 않는다.
+
+### 개수는 결과이지 목표가 아니다
+
+강제하는 규칙은 "이전 주차에서 실습한 것을 다시 실습하지 않는다" 하나다. 주차별 도입 가능한 개념의 풀이 단조 감소하므로 Notebook 수도 자연히 줄어든다.
+
+```text
+W1 풀 = 이 과정이 가르칠 전체 개념 − 선행 과정에서 실습한 것
+W2 풀 = W1 풀 − W1에서 실습한 것
+W3 풀 = W2 풀 − W2에서 실습한 것
+```
+
+관측 결과는 `agent_technique` 기준 10 > 9 > 8이다. **이 값을 Test로 강제하지 않는다.** 개수를 못 박으면 어떤 주차가 실제로 더 많은 신규 개념을 필요로 할 때 억지로 합치게 되고, 분할 규칙이 막으려던 밀도 문제가 되돌아온다. Test는 중복 도입만 검사하고 개수는 리포트한다.
+
+### 통합 Notebook
+
+주차별 마지막 `agent_technique` Notebook은 통합·평가를 담당한다. 라이브러리 import 없이 순수 Python으로 축소 Pipeline과 불변조건만 고정해, 라이브러리가 바뀌어도 계약이 남게 한다. 주차당 정확히 1개다.
+
+### Notebook 내부 순서
 
 각 Notebook은 다음 순서를 지킨다.
 
@@ -361,6 +429,8 @@ Quality Event
 - 결과만 출력하고 중간 Pipeline을 숨기는 예제
 - 문구만 다른 중복 Notebook
 - 실행되지 않는 약속·설명만 존재하는 Notebook
+- Python 문법 자체를 가르치는 Cell
+- 한 Notebook에 도메인 개념 2개 이상
 
 ### Notebook 자동 검증
 
@@ -372,6 +442,11 @@ Quality Event
 - 정상·실패 Assertion 확인
 - 중복 Code Block과 Boilerplate Comment 검사
 - App Safety Semantics와 Notebook Guard의 동등성 검사
+- 중복 도입 검사 — 같은 개념이 두 주차의 신규 개념에 동시 등장하지 않음
+- 선행 과정 개념이 신규 개념에 등장하지 않음
+- Notebook당 신규 도메인 개념 정확히 1개
+- 주차당 통합 Notebook 정확히 1개
+- 시나리오 고유성 — 29개 Notebook의 시나리오 문장이 서로 다름
 
 ---
 
@@ -476,9 +551,11 @@ RED: 하나의 행동 Test 작성
 
 ## 10. 저장소 구조
 
+주차 디렉터리는 초안의 `week1~3` 대신 도메인명을 쓴다. 선행 과정과 주차 번호가 겹쳐 "week2"가 어느 Project인지 혼동되기 때문이다.
+
 ```text
 agent-workflow-lab-v2/
-├── README.md
+├── README.md                      # 선행 과정 안내, 디렉터리 네이밍 차이
 ├── plan.md
 ├── curriculum_manifest.yaml
 ├── notebook_contracts.yaml
@@ -492,14 +569,14 @@ agent-workflow-lab-v2/
 │   ├── retrieval/
 │   ├── mcp/
 │   └── testing/
-├── week1/
+├── w1_retrieval_quality/          # Notebook 10개
 │   ├── app.py
 │   ├── domain.py
 │   ├── knowledge/
 │   ├── evaluation/
 │   ├── notebooks/
 │   └── tests/
-├── week2/
+├── w2_procurement_agent/          # Notebook 9개
 │   ├── app.py
 │   ├── domain.py
 │   ├── tools.py
@@ -507,7 +584,7 @@ agent-workflow-lab-v2/
 │   ├── fixtures/
 │   ├── notebooks/
 │   └── tests/
-├── week3/
+├── w3_capa_control_tower/         # Notebook 10개
 │   ├── app.py
 │   ├── domain.py
 │   ├── agents.py
@@ -520,6 +597,8 @@ agent-workflow-lab-v2/
 ├── tests/
 │   ├── test_curriculum_manifest.py
 │   ├── test_notebook_contracts.py
+│   ├── test_cumulative_structure.py
+│   ├── test_capability_qualification.py
 │   ├── test_docs_runtime_alignment.py
 │   ├── test_security_invariants.py
 │   └── test_live_contracts.py
@@ -542,7 +621,7 @@ agent-workflow-lab-v2/
 ```bash
 uv sync --frozen
 uv run pytest -q
-uv run python -m compileall shared week1 week2 week3 app_pages streamlit_app.py
+uv run python -m compileall shared w1_retrieval_quality w2_procurement_agent w3_capa_control_tower app_pages streamlit_app.py
 uv run python scripts/validate_notebooks.py
 uv run python scripts/execute_notebooks.py
 git diff --check
@@ -577,7 +656,10 @@ Docker·Compose를 사용할 수 없는 환경에서는 해당 Gate를 미검증
 
 ### Notebook
 
-- Week 1 5개, Week 2 5개, Week 3 6개 등 총 16개가 존재한다.
+- `w1_retrieval_quality` 10개, `w2_procurement_agent` 9개, `w3_capa_control_tower` 10개 등 총 29개가 존재한다.
+- `agent_technique` 27개, `engineering_practice` 2개로 분류된다.
+- 같은 개념이 두 주차에 걸쳐 신규로 도입되지 않는다.
+- 주차마다 통합 Notebook이 정확히 1개 존재한다.
 - 모든 Notebook이 App Import 없이 Top-to-bottom 실행된다.
 - 정상·실패·중간 관찰·Assertion이 존재한다.
 
@@ -613,10 +695,12 @@ Docker·Compose를 사용할 수 없는 환경에서는 해당 Gate를 미검증
 
 구현 시작 전 다음을 별도로 승인한다.
 
-1. 작업 경로 `/opt/data/agent-workflow-lab-v2`
-2. 총 16개 Notebook 구성
-3. Fixture 필수·Live 선택 검증 원칙
-4. 실제 구현 시작
+1. ~~작업 경로~~ → `~/Desktop/project/hanhaw/agent-workflow-lab-v2` **승인 완료**
+2. ~~총 16개 Notebook 구성~~ → 총 29개, `notebook_type` 2축 **승인 완료**
+3. 주차 디렉터리 도메인명 **승인 완료**
+4. Toolchain `brew install uv` **승인 완료**
+5. Fixture 필수·Live 선택 검증 원칙
+6. 실제 구현 시작 — Phase 0 상세는 `plan2-phase0-execution.md`
 
 ---
 
