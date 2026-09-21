@@ -244,7 +244,7 @@ Purchase Request
 - Prompt Chaining (`02`의 연속 호출로 다룸)
 - Conditional Routing (선행 과정 재사용, Notebook 없음)
 - Fan-out·Fan-in
-- Timeout·Retry·Idempotency
+- Timeout·Retry (Idempotency는 Week 3으로 이동)
 - Unknown Tool Fail-closed
 
 ### 허용 Tool
@@ -271,6 +271,8 @@ Purchase Request
 | 9 | `09_tool_failure_matrix.ipynb` | **통합** — Unknown Tool·Invalid Args·Timeout·Retry 소진 실패 행렬 |
 
 `Conditional Routing`은 선행 과정에서 실습했으므로 Notebook을 만들지 않고 App에서만 사용한다.
+
+`Idempotency`는 Week 3으로 옮겼다. Week 2의 Tool은 전부 읽기 전용이라 재시도가 두 번 적용될 것이 없다. 중복 실행이 실제 문제가 되는 곳은 중단·재개가 있는 Week 3이며, 거기서 `06_resume_and_idempotency.ipynb`가 다룬다.
 
 ### Week 2 완료 기준
 
